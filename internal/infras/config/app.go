@@ -7,6 +7,7 @@ import (
 
 // AppConfig 应用运行时配置
 // OptionService 通过修改此结构的字段实现运行时配置变更
+// todo 如果管理后台变更后，这个结构体的变量可能需要实时更新到 options 表中
 type AppConfig struct {
 	SystemName               string
 	ServerAddress            string
