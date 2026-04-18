@@ -15,7 +15,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 )
 
 type LarkOAuthResponse struct {
@@ -29,23 +28,32 @@ type LarkUser struct {
 
 type LarkUserHandler struct {
 	userService *application.UserService
+	LarkUserConfig
 }
 
-func NewLarkUserHandler(userService *application.UserService) *LarkUserHandler {
-	return &LarkUserHandler{userService: userService}
+type LarkUserConfig struct {
+	LarkClientId     string
+	LarkClientSecret string
+	ServerAddress    string
+	RegisterEnabled  bool
 }
 
-func getLarkUserInfoByCode(code string) (*LarkUser, error) {
+func NewLarkUserHandler(userService *application.UserService, conf LarkUserConfig) *LarkUserHandler {
+	return &LarkUserHandler{userService: userService, LarkUserConfig: conf}
+}
+
+func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) {
 	if code == "" {
 		return nil, errors.New("无效的参数")
 	}
 	values := map[string]string{
-		"client_id":     config.LarkClientId,
-		"client_secret": config.LarkClientSecret,
+		"client_id":     h.LarkClientId,
+		"client_secret": h.LarkClientSecret,
 		"code":          code,
 		"grant_type":    "authorization_code",
-		"redirect_uri":  fmt.Sprintf("%s/oauth/lark", config.ServerAddress),
+		"redirect_uri":  fmt.Sprintf("%s/oauth/lark", h.ServerAddress),
 	}
+
 	jsonData, err := json.Marshal(values)
 	if err != nil {
 		return nil, err
@@ -112,7 +120,7 @@ func (h *LarkUserHandler) LarkOAuth(c *gin.Context) {
 	}
 
 	code := c.Query("code")
-	larkUser, err := getLarkUserInfoByCode(code)
+	larkUser, err := h.getLarkUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -133,7 +141,7 @@ func (h *LarkUserHandler) LarkOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if config.RegisterEnabled {
+		if h.RegisterEnabled {
 			user = &entity.User{
 				LarkId:      larkUser.OpenID,
 				Username:    "lark_" + strconv.Itoa(h.userService.GetMaxUserId()+1),
@@ -173,7 +181,7 @@ func (h *LarkUserHandler) LarkOAuth(c *gin.Context) {
 
 func (h *LarkUserHandler) LarkBind(c *gin.Context, currentUser *entity.User) {
 	code := c.Query("code")
-	larkUser, err := getLarkUserInfoByCode(code)
+	larkUser, err := h.getLarkUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

@@ -26,7 +26,7 @@ func SetRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContain
 	}
 
 	if frontendBaseUrl == "" {
-		SetWebRouter(router, buildFS, hc)
+		SetWebRouter(router, buildFS, hc, mw)
 	} else {
 		frontendBaseUrl = strings.TrimSuffix(frontendBaseUrl, "/")
 		router.NoRoute(func(c *gin.Context) {

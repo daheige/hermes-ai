@@ -7,7 +7,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/i18n"
 	"hermes-ai/internal/interfaces/web/handlers/validate"
 )
@@ -15,10 +14,11 @@ import (
 // AuthHandler 认证处理器
 type AuthHandler struct {
 	service *application.UserService
+	AuthConfig
 }
 
 // NewAuthHandler 创建认证处理器
-func NewAuthHandler(service *application.UserService) *AuthHandler {
+func NewAuthHandler(service *application.UserService, conf AuthConfig) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
@@ -28,9 +28,16 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type AuthConfig struct {
+	PasswordLoginEnabled     bool
+	PasswordRegisterEnabled  bool
+	RegisterEnabled          bool
+	EmailVerificationEnabled bool
+}
+
 // Login 用户登录
 func (h *AuthHandler) Login(c *gin.Context) {
-	if !config.PasswordLoginEnabled {
+	if !h.PasswordLoginEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员关闭了密码登录",
 			"success": false,
@@ -81,14 +88,14 @@ type RegisterRequest struct {
 // Register 用户注册
 func (h *AuthHandler) Register(c *gin.Context) {
 	ctx := c.Request.Context()
-	if !config.RegisterEnabled {
+	if !h.RegisterEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员关闭了新用户注册",
 			"success": false,
 		})
 		return
 	}
-	if !config.PasswordRegisterEnabled {
+	if !h.PasswordRegisterEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员关闭了通过密码进行注册，请使用第三方账户验证的形式进行注册",
 			"success": false,
@@ -112,7 +119,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if config.EmailVerificationEnabled {
+	if h.EmailVerificationEnabled {
 		if req.Email == "" || req.VerificationCode == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -137,7 +144,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		DisplayName: req.Username,
 		InviterId:   inviterId,
 	}
-	if config.EmailVerificationEnabled {
+	if h.EmailVerificationEnabled {
 		cleanUser.Email = req.Email
 	}
 	if err := h.service.Insert(ctx, &cleanUser, inviterId); err != nil {

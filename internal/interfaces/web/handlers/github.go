@@ -15,7 +15,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/utils"
 )
 
@@ -31,14 +30,34 @@ type GitHubUser struct {
 	Email string `json:"email"`
 }
 
-func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
+type GitHubUserConfig struct {
+	GitHubClientId     string
+	GitHubClientSecret string
+	GitHubOAuthEnabled bool
+	RegisterEnabled    bool
+}
+
+type GitHubHandler struct {
+	userService *application.UserService
+	GitHubUserConfig
+}
+
+// NewGitHubHandler 创建github handler
+func NewGitHubHandler(userService *application.UserService, conf GitHubUserConfig) *GitHubHandler {
+	return &GitHubHandler{
+		userService:      userService,
+		GitHubUserConfig: conf,
+	}
+}
+
+func (h *GitHubHandler) getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	if code == "" {
 		return nil, errors.New("无效的参数")
 	}
 
 	values := map[string]string{
-		"client_id":     config.GitHubClientId,
-		"client_secret": config.GitHubClientSecret,
+		"client_id":     h.GitHubClientId,
+		"client_secret": h.GitHubClientSecret,
 		"code":          code,
 	}
 	jsonData, err := json.Marshal(values)
@@ -102,17 +121,6 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	return &githubUser, nil
 }
 
-type GitHubHandler struct {
-	userService *application.UserService
-}
-
-// NewGitHubHandler 创建github handler
-func NewGitHubHandler(userService *application.UserService) *GitHubHandler {
-	return &GitHubHandler{
-		userService: userService,
-	}
-}
-
 func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 	ctx := c.Request.Context()
 	state := c.Query("state")
@@ -130,7 +138,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 		return
 	}
 
-	if !config.GitHubOAuthEnabled {
+	if !h.GitHubOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 GitHub 登录以及注册",
@@ -138,7 +146,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 		return
 	}
 	code := c.Query("code")
-	githubUser, err := getGitHubUserInfoByCode(code)
+	githubUser, err := h.getGitHubUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -159,7 +167,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if config.RegisterEnabled {
+		if h.RegisterEnabled {
 			user = &entity.User{
 				GitHubId:    githubUser.Login,
 				Username:    "github_" + strconv.Itoa(h.userService.GetMaxUserId()+1),
@@ -200,7 +208,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 }
 
 func (h *GitHubHandler) GitHubBind(c *gin.Context, currentUser *entity.User) {
-	if !config.GitHubOAuthEnabled {
+	if !h.GitHubOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 GitHub 登录以及注册",
@@ -209,7 +217,7 @@ func (h *GitHubHandler) GitHubBind(c *gin.Context, currentUser *entity.User) {
 	}
 
 	code := c.Query("code")
-	githubUser, err := getGitHubUserInfoByCode(code)
+	githubUser, err := h.getGitHubUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

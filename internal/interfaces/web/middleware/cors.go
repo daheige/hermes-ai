@@ -6,10 +6,10 @@ import (
 )
 
 func CORS() gin.HandlerFunc {
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.AllowCredentials = true
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"*"}
-	return cors.New(config)
+	conf := cors.DefaultConfig()
+	conf.AllowAllOrigins = true
+	conf.AllowCredentials = true
+	conf.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	conf.AllowHeaders = []string{"*"}
+	return cors.New(conf)
 }

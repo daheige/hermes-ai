@@ -151,13 +151,48 @@ func main() {
 	// Initialize handler container with services
 	handlerContainer := handlers.NewHandlerContainer(
 		services, channelMonitor,
+		handlers.LarkUserConfig{
+			LarkClientId:     config.LarkClientId,
+			LarkClientSecret: config.LarkClientSecret,
+			ServerAddress:    config.ServerAddress,
+			RegisterEnabled:  config.RegisterEnabled,
+		},
+		handlers.GitHubUserConfig{
+			GitHubClientId:     config.GitHubClientId,
+			GitHubClientSecret: config.GitHubClientSecret,
+			GitHubOAuthEnabled: config.GitHubOAuthEnabled,
+			RegisterEnabled:    config.RegisterEnabled,
+		},
+		handlers.AuthConfig{
+			PasswordLoginEnabled:     config.PasswordLoginEnabled,
+			PasswordRegisterEnabled:  config.PasswordRegisterEnabled,
+			RegisterEnabled:          config.RegisterEnabled,
+			EmailVerificationEnabled: config.EmailVerificationEnabled,
+		},
 	)
 
 	// init relay services
 	relayServices.Init(services.UserService, services.TokenService, services.LogService, services.ChannelService)
 
 	// init middlewares
-	middlewares := middleware.NewMiddlewares(services.UserService, services.TokenService, services.ChannelService)
+	rateLimitConf := middleware.RateLimitConfig{
+		GlobalWebRateLimitNum:          config.GlobalWebRateLimitNum,
+		GlobalWebRateLimitDuration:     config.GlobalWebRateLimitDuration,
+		GlobalApiRateLimitNum:          config.GlobalApiRateLimitNum,
+		GlobalApiRateLimitDuration:     config.GlobalApiRateLimitDuration,
+		CriticalRateLimitNum:           config.CriticalRateLimitNum,
+		CriticalRateLimitDuration:      config.CriticalRateLimitDuration,
+		DownloadRateLimitNum:           config.DownloadRateLimitNum,
+		DownloadRateLimitDuration:      config.DownloadRateLimitDuration,
+		UploadRateLimitNum:             config.UploadRateLimitNum,
+		UploadRateLimitDuration:        config.UploadRateLimitDuration,
+		RateLimitKeyExpirationDuration: config.RateLimitKeyExpirationDuration,
+		DebugEnabled:                   config.DebugEnabled,
+	}
+	middlewares := middleware.NewMiddlewares(
+		services, rds.RDB, rateLimitConf, config.TurnstileCheckEnabled, config.TurnstileSecretKey,
+	)
+
 	// Create router with handlers
 	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares)
 	var port = env.Int("PORT", 1337)

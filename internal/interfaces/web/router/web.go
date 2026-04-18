@@ -16,10 +16,10 @@ import (
 	"hermes-ai/internal/interfaces/web/middleware"
 )
 
-func SetWebRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContainers) {
+func SetWebRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContainers, mw *middleware.Middlewares) {
 	indexPageData, _ := buildFS.ReadFile(fmt.Sprintf("web/build/%s/index.html", config.Theme))
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	router.Use(middleware.GlobalWebRateLimit())
+	router.Use(mw.RateLimitMiddleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 	router.Use(static.Serve("/", embed2.EmbedFolder(buildFS, fmt.Sprintf("web/build/%s", config.Theme))))
 	router.NoRoute(func(c *gin.Context) {

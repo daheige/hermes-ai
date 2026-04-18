@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	RDB          redis.Cmdable
+	RDB          redis.UniversalClient
 	RedisEnabled = true
 )
 

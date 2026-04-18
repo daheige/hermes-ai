@@ -31,6 +31,9 @@ type HandlerContainers struct {
 func NewHandlerContainer(
 	services *application.Services,
 	channelMonitor *monitor2.ChannelMonitor,
+	larkUserConfig LarkUserConfig,
+	githubUserConfig GitHubUserConfig,
+	authConfig AuthConfig,
 ) *HandlerContainers {
 	return &HandlerContainers{
 		TokenHandler:      NewTokenHandler(services.TokenService),
@@ -40,7 +43,7 @@ func NewHandlerContainer(
 		OptionHandler:     NewOptionHandler(services.OptionService),
 		RedemptionHandler: NewRedemptionHandler(services.RedemptionService),
 		MiscHandler:       NewMiscHandler(services.UserService),
-		AuthHandler:       NewAuthHandler(services.UserService),
+		AuthHandler:       NewAuthHandler(services.UserService, authConfig),
 		ChannelTestHandler: NewChannelTestHandler(
 			services.ChannelService,
 			services.LogService,
@@ -52,8 +55,8 @@ func NewHandlerContainer(
 		ModelHandler:          NewModelHandler(services.UserService, services.ChannelService),
 		GroupHandler:          NewGroupHandler(),
 		RelayHandler:          NewRelayHandler(services.ChannelService, channelMonitor),
-		GitHubHandler:         NewGitHubHandler(services.UserService),
-		LarkUserHandler:       NewLarkUserHandler(services.UserService),
+		GitHubHandler:         NewGitHubHandler(services.UserService, githubUserConfig),
+		LarkUserHandler:       NewLarkUserHandler(services.UserService, larkUserConfig),
 		OidcUserHandler:       NewOidcUserHandler(services.UserService),
 		WeChatUserHandler:     NewWechatLoginHandler(services.UserService),
 	}
