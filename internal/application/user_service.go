@@ -64,6 +64,11 @@ func (s *UserService) GetUserById(id int, selectAll bool) (*entity.User, error) 
 	return s.userRepo.GetUserById(id, selectAll)
 }
 
+// GetUserById 根据ID获取用户
+func (s *UserService) GetUserByName(username string) (*entity.User, error) {
+	return s.userRepo.GetByUsername(username)
+}
+
 // GetUserIdByAffCode 根据邀请码获取用户ID
 func (s *UserService) GetUserIdByAffCode(affCode string) (int, error) {
 	return s.userRepo.GetUserIdByAffCode(affCode)
@@ -280,10 +285,11 @@ func (s *UserService) CacheIsUserEnabled(userId int) (bool, error) {
 }
 
 // ValidateAccessToken 验证访问令牌
-func (s *UserService) ValidateAccessToken(token string) *entity.User {
+func (s *UserService) ValidateAccessToken(token string) (*entity.User, error) {
 	if token == "" {
-		return nil
+		return nil, errors.New("token is empty")
 	}
+
 	token = strings.Replace(token, "Bearer ", "", 1)
 	return s.userRepo.ValidateAccessToken(token)
 }

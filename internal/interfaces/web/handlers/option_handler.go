@@ -3,40 +3,55 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/i18n"
-	"hermes-ai/internal/infras/utils"
 )
 
 // OptionHandler 配置选项处理器
 type OptionHandler struct {
-	service *application.OptionService
+	service          *application.OptionService
+	optionMapRWMutex sync.RWMutex
+	OptionConfig
+}
+
+type OptionConfig struct {
+	OptionMap            map[string]string
+	ValidThemes          map[string]bool
+	GithubClientId       string
+	EmailDomainWhitelist []string
+	WeChatServerAddress  string
+	TurnstileSiteKey     string
 }
 
 // NewOptionHandler 创建配置选项处理器
-func NewOptionHandler(service *application.OptionService) *OptionHandler {
-	return &OptionHandler{service: service}
+func NewOptionHandler(service *application.OptionService, conf OptionConfig) *OptionHandler {
+	return &OptionHandler{
+		service:      service,
+		OptionConfig: conf,
+	}
 }
 
 // GetOptions 获取所有配置选项
 func (h *OptionHandler) GetOptions(c *gin.Context) {
 	var options []*entity.Option
-	config.OptionMapRWMutex.Lock()
-	for k, v := range config.OptionMap {
+	h.optionMapRWMutex.Lock()
+	for k, v := range h.OptionMap {
 		if strings.HasSuffix(k, "Token") || strings.HasSuffix(k, "Secret") {
 			continue
 		}
+
 		options = append(options, &entity.Option{
 			Key:   k,
-			Value: utils.Interface2String(v),
+			Value: v,
 		})
 	}
-	config.OptionMapRWMutex.Unlock()
+
+	h.optionMapRWMutex.Unlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -63,7 +78,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 
 	switch req.Key {
 	case "Theme":
-		if !config.ValidThemes[req.Value] {
+		if !h.ValidThemes[req.Value] {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无效的主题",
@@ -71,7 +86,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 			return
 		}
 	case "GitHubOAuthEnabled":
-		if req.Value == "true" && config.GitHubClientId == "" {
+		if req.Value == "true" && h.GithubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
@@ -79,7 +94,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 			return
 		}
 	case "EmailDomainRestrictionEnabled":
-		if req.Value == "true" && len(config.EmailDomainWhitelist) == 0 {
+		if req.Value == "true" && len(h.EmailDomainWhitelist) == 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
@@ -87,7 +102,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 			return
 		}
 	case "WeChatAuthEnabled":
-		if req.Value == "true" && config.WeChatServerAddress == "" {
+		if req.Value == "true" && h.WeChatServerAddress == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
@@ -95,7 +110,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 			return
 		}
 	case "TurnstileCheckEnabled":
-		if req.Value == "true" && config.TurnstileSiteKey == "" {
+		if req.Value == "true" && h.TurnstileSiteKey == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
@@ -112,6 +127,7 @@ func (h *OptionHandler) UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

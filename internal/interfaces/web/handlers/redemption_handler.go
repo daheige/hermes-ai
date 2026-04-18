@@ -8,19 +8,19 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/utils"
 )
 
 // RedemptionHandler 兑换码处理器
 type RedemptionHandler struct {
-	service *application.RedemptionService
+	service      *application.RedemptionService
+	itemsPerPage int
 }
 
 // NewRedemptionHandler 创建兑换码处理器
-func NewRedemptionHandler(service *application.RedemptionService) *RedemptionHandler {
-	return &RedemptionHandler{service: service}
+func NewRedemptionHandler(service *application.RedemptionService, itemsPerPage int) *RedemptionHandler {
+	return &RedemptionHandler{service: service, itemsPerPage: itemsPerPage}
 }
 
 // GetAllRedemptions 获取所有兑换码
@@ -29,7 +29,7 @@ func (h *RedemptionHandler) GetAllRedemptions(c *gin.Context) {
 	if p < 0 {
 		p = 0
 	}
-	redemptions, err := h.service.GetAllRedemptions(p*config.ItemsPerPage, config.ItemsPerPage)
+	redemptions, err := h.service.GetAllRedemptions(p*h.itemsPerPage, h.itemsPerPage)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

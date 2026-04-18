@@ -9,20 +9,48 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"hermes-ai/internal/application"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/i18n"
 	message2 "hermes-ai/internal/infras/message"
 	"hermes-ai/internal/interfaces/web/handlers/validate"
 )
 
+type MiscConfig struct {
+	EmailVerificationEnabled      bool
+	GitHubOAuthEnabled            bool
+	GitHubClientId                string
+	LarkClientId                  string
+	SystemName                    string
+	Logo                          string
+	Footer                        string
+	WeChatAccountQRCodeImageURL   string
+	WeChatAuthEnabled             bool
+	ServerAddress                 string
+	TurnstileCheckEnabled         bool
+	TurnstileSiteKey              string
+	TopUpLink                     string
+	ChatLink                      string
+	QuotaPerUnit                  float64
+	DisplayInCurrencyEnabled      bool
+	OidcEnabled                   bool
+	OidcClientId                  string
+	OidcWellKnown                 string
+	OidcAuthorizationEndpoint     string
+	OidcTokenEndpoint             string
+	OidcUserinfoEndpoint          string
+	EmailDomainRestrictionEnabled bool
+	EmailDomainWhitelist          []string
+	OptionMap                     map[string]string
+}
+
 // MiscHandler 杂项处理器
 type MiscHandler struct {
 	userService *application.UserService
+	MiscConfig
 }
 
 // NewMiscHandler 创建杂项处理器
-func NewMiscHandler(userService *application.UserService) *MiscHandler {
-	return &MiscHandler{userService: userService}
+func NewMiscHandler(userService *application.UserService, conf MiscConfig) *MiscHandler {
+	return &MiscHandler{userService: userService, MiscConfig: conf}
 }
 
 // GetStatus 获取系统状态
@@ -33,62 +61,56 @@ func (h *MiscHandler) GetStatus(c *gin.Context) {
 		"data": gin.H{
 			"version":                     "1.0.1",
 			"start_time":                  time.Now().Unix(),
-			"email_verification":          config.EmailVerificationEnabled,
-			"github_oauth":                config.GitHubOAuthEnabled,
-			"github_client_id":            config.GitHubClientId,
-			"lark_client_id":              config.LarkClientId,
-			"system_name":                 config.SystemName,
-			"logo":                        config.Logo,
-			"footer_html":                 config.Footer,
-			"wechat_qrcode":               config.WeChatAccountQRCodeImageURL,
-			"wechat_login":                config.WeChatAuthEnabled,
-			"server_address":              config.ServerAddress,
-			"turnstile_check":             config.TurnstileCheckEnabled,
-			"turnstile_site_key":          config.TurnstileSiteKey,
-			"top_up_link":                 config.TopUpLink,
-			"chat_link":                   config.ChatLink,
-			"quota_per_unit":              config.QuotaPerUnit,
-			"display_in_currency":         config.DisplayInCurrencyEnabled,
-			"oidc":                        config.OidcEnabled,
-			"oidc_client_id":              config.OidcClientId,
-			"oidc_well_known":             config.OidcWellKnown,
-			"oidc_authorization_endpoint": config.OidcAuthorizationEndpoint,
-			"oidc_token_endpoint":         config.OidcTokenEndpoint,
-			"oidc_userinfo_endpoint":      config.OidcUserinfoEndpoint,
+			"email_verification":          h.EmailVerificationEnabled,
+			"github_oauth":                h.GitHubOAuthEnabled,
+			"github_client_id":            h.GitHubClientId,
+			"lark_client_id":              h.LarkClientId,
+			"system_name":                 h.SystemName,
+			"logo":                        h.Logo,
+			"footer_html":                 h.Footer,
+			"wechat_qrcode":               h.WeChatAccountQRCodeImageURL,
+			"wechat_login":                h.WeChatAuthEnabled,
+			"server_address":              h.ServerAddress,
+			"turnstile_check":             h.TurnstileCheckEnabled,
+			"turnstile_site_key":          h.TurnstileSiteKey,
+			"top_up_link":                 h.TopUpLink,
+			"chat_link":                   h.ChatLink,
+			"quota_per_unit":              h.QuotaPerUnit,
+			"display_in_currency":         h.DisplayInCurrencyEnabled,
+			"oidc":                        h.OidcEnabled,
+			"oidc_client_id":              h.OidcClientId,
+			"oidc_well_known":             h.OidcWellKnown,
+			"oidc_authorization_endpoint": h.OidcAuthorizationEndpoint,
+			"oidc_token_endpoint":         h.OidcTokenEndpoint,
+			"oidc_userinfo_endpoint":      h.OidcUserinfoEndpoint,
 		},
 	})
 }
 
 // GetNotice 获取公告
 func (h *MiscHandler) GetNotice(c *gin.Context) {
-	config.OptionMapRWMutex.RLock()
-	defer config.OptionMapRWMutex.RUnlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    config.OptionMap["Notice"],
+		"data":    h.OptionMap["Notice"],
 	})
 }
 
 // GetAbout 获取关于信息
 func (h *MiscHandler) GetAbout(c *gin.Context) {
-	config.OptionMapRWMutex.RLock()
-	defer config.OptionMapRWMutex.RUnlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    config.OptionMap["About"],
+		"data":    h.OptionMap["About"],
 	})
 }
 
 // GetHomePageContent 获取首页内容
 func (h *MiscHandler) GetHomePageContent(c *gin.Context) {
-	config.OptionMapRWMutex.RLock()
-	defer config.OptionMapRWMutex.RUnlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    config.OptionMap["HomePageContent"],
+		"data":    h.OptionMap["HomePageContent"],
 	})
 }
 
@@ -102,9 +124,9 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 		})
 		return
 	}
-	if config.EmailDomainRestrictionEnabled {
+	if h.EmailDomainRestrictionEnabled {
 		allowed := false
-		for _, domain := range config.EmailDomainWhitelist {
+		for _, domain := range h.EmailDomainWhitelist {
 			if strings.HasSuffix(email, "@"+domain) {
 				allowed = true
 				break
@@ -128,7 +150,7 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 
 	code := validate.GenerateVerificationCode(6)
 	validate.RegisterVerificationCodeWithKey(email, code, validate.EmailVerificationPurpose)
-	subject := fmt.Sprintf("%s 邮箱验证邮件", config.SystemName)
+	subject := fmt.Sprintf("%s 邮箱验证邮件", h.SystemName)
 	content := message2.EmailTemplate(
 		subject,
 		fmt.Sprintf(`
@@ -137,7 +159,7 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 			<p>您的验证码为：</p>
 			<p style="font-size: 24px; font-weight: bold; color: #333; background-color: #f8f8f8; padding: 10px; text-align: center; border-radius: 4px;">%s</p>
 			<p style="color: #666;">验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>
-		`, config.SystemName, code, validate.VerificationValidMinutes),
+		`, h.SystemName, code, validate.VerificationValidMinutes),
 	)
 	err := message2.SendEmail(subject, email, content)
 	if err != nil {
@@ -173,8 +195,8 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 
 	code := validate.GenerateVerificationCode(0)
 	validate.RegisterVerificationCodeWithKey(email, code, validate.PasswordResetPurpose)
-	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", config.ServerAddress, email, code)
-	subject := fmt.Sprintf("%s 密码重置", config.SystemName)
+	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", h.ServerAddress, email, code)
+	subject := fmt.Sprintf("%s 密码重置", h.SystemName)
 	content := message2.EmailTemplate(
 		subject,
 		fmt.Sprintf(`
@@ -187,7 +209,7 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 			<p style="color: #666;">如果按钮无法点击，请复制以下链接到浏览器中打开：</p>
 			<p style="background-color: #f8f8f8; padding: 10px; border-radius: 4px; word-break: break-all;">%s</p>
 			<p style="color: #666;">重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>
-		`, config.SystemName, link, link, validate.VerificationValidMinutes),
+		`, h.SystemName, link, link, validate.VerificationValidMinutes),
 	)
 	err := message2.SendEmail(subject, email, content)
 	if err != nil {

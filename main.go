@@ -150,25 +150,9 @@ func main() {
 
 	// Initialize handler container with services
 	handlerContainer := handlers.NewHandlerContainer(
-		services, channelMonitor,
-		handlers.LarkUserConfig{
-			LarkClientId:     config.LarkClientId,
-			LarkClientSecret: config.LarkClientSecret,
-			ServerAddress:    config.ServerAddress,
-			RegisterEnabled:  config.RegisterEnabled,
-		},
-		handlers.GitHubUserConfig{
-			GitHubClientId:     config.GitHubClientId,
-			GitHubClientSecret: config.GitHubClientSecret,
-			GitHubOAuthEnabled: config.GitHubOAuthEnabled,
-			RegisterEnabled:    config.RegisterEnabled,
-		},
-		handlers.AuthConfig{
-			PasswordLoginEnabled:     config.PasswordLoginEnabled,
-			PasswordRegisterEnabled:  config.PasswordRegisterEnabled,
-			RegisterEnabled:          config.RegisterEnabled,
-			EmailVerificationEnabled: config.EmailVerificationEnabled,
-		},
+		services,
+		channelMonitor,
+		initHandlerParams(),
 	)
 
 	// init relay services
@@ -194,7 +178,7 @@ func main() {
 	)
 
 	// Create router with handlers
-	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares)
+	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, config.Theme)
 	var port = env.Int("PORT", 1337)
 	log.Printf("server started on http://localhost:%d", port)
 
@@ -268,4 +252,88 @@ func shutdown(server *http.Server, gracefulWait time.Duration) {
 	case <-ctx.Done():
 		log.Println("server ctx timeout")
 	}
+}
+
+func initHandlerParams() *handlers.HandlerParams {
+	handlerParams := &handlers.HandlerParams{
+		LarkUserConfig: handlers.LarkUserConfig{
+			LarkClientId:     config.LarkClientId,
+			LarkClientSecret: config.LarkClientSecret,
+			ServerAddress:    config.ServerAddress,
+			RegisterEnabled:  config.RegisterEnabled,
+		},
+		GithubUserConfig: handlers.GitHubUserConfig{
+			GitHubClientId:     config.GitHubClientId,
+			GitHubClientSecret: config.GitHubClientSecret,
+			GitHubOAuthEnabled: config.GitHubOAuthEnabled,
+			RegisterEnabled:    config.RegisterEnabled,
+		},
+		AuthConfig: handlers.AuthConfig{
+			PasswordLoginEnabled:     config.PasswordLoginEnabled,
+			PasswordRegisterEnabled:  config.PasswordRegisterEnabled,
+			RegisterEnabled:          config.RegisterEnabled,
+			EmailVerificationEnabled: config.EmailVerificationEnabled,
+		},
+		WeChatUserConfig: handlers.WeChatUserConfig{
+			WeChatServerAddress: config.WeChatServerAddress,
+			WeChatServerToken:   config.WeChatServerToken,
+			WeChatAuthEnabled:   config.WeChatAuthEnabled,
+			RegisterEnabled:     config.RegisterEnabled,
+		},
+		OidcUserConfig: handlers.OidcUserConfig{
+			OidcClientId:         config.OidcClientId,
+			OidcClientSecret:     config.OidcClientSecret,
+			ServerAddress:        config.ServerAddress,
+			OidcTokenEndpoint:    config.OidcTokenEndpoint,
+			OidcUserinfoEndpoint: config.OidcUserinfoEndpoint,
+			OidcEnabled:          config.OidcEnabled,
+			RegisterEnabled:      config.RegisterEnabled,
+		},
+		MiscConfig: handlers.MiscConfig{
+			EmailVerificationEnabled:      config.EmailVerificationEnabled,
+			GitHubOAuthEnabled:            config.GitHubOAuthEnabled,
+			GitHubClientId:                config.GitHubClientId,
+			LarkClientId:                  config.LarkClientId,
+			SystemName:                    config.SystemName,
+			Logo:                          config.Logo,
+			Footer:                        config.Footer,
+			WeChatAccountQRCodeImageURL:   config.WeChatAccountQRCodeImageURL,
+			WeChatAuthEnabled:             config.WeChatAuthEnabled,
+			ServerAddress:                 config.ServerAddress,
+			TurnstileCheckEnabled:         config.TurnstileCheckEnabled,
+			TurnstileSiteKey:              config.TurnstileSiteKey,
+			TopUpLink:                     config.TopUpLink,
+			ChatLink:                      config.ChatLink,
+			QuotaPerUnit:                  config.QuotaPerUnit,
+			DisplayInCurrencyEnabled:      config.DisplayInCurrencyEnabled,
+			OidcEnabled:                   config.OidcEnabled,
+			OidcClientId:                  config.OidcClientId,
+			OidcWellKnown:                 config.OidcWellKnown,
+			OidcAuthorizationEndpoint:     config.OidcAuthorizationEndpoint,
+			OidcTokenEndpoint:             config.OidcTokenEndpoint,
+			OidcUserinfoEndpoint:          config.OidcUserinfoEndpoint,
+			EmailDomainRestrictionEnabled: config.EmailDomainRestrictionEnabled,
+			EmailDomainWhitelist:          config.EmailDomainWhitelist,
+			OptionMap:                     config.OptionMap,
+		},
+		ItemsPerPage:                   config.ItemsPerPage,
+		QuotaPerUnit:                   config.QuotaPerUnit,
+		DisplayInCurrencyEnabled:       config.DisplayInCurrencyEnabled,
+		RootUserEmail:                  &config.RootUserEmail,
+		TestPrompt:                     config.TestPrompt,
+		ChannelDisableThreshold:        config.ChannelDisableThreshold,
+		AutomaticDisableChannelEnabled: config.AutomaticDisableChannelEnabled,
+		RequestInterval:                config.RequestInterval,
+		DisplayTokenStatEnabled:        config.DisplayTokenStatEnabled,
+		DebugEnabled:                   config.DebugEnabled,
+		RetryTimes:                     config.RetryTimes,
+		OptionMap:                      config.OptionMap,
+		ValidThemes:                    config.ValidThemes,
+		GithubClientId:                 config.GitHubClientId,
+		EmailDomainWhitelist:           config.EmailDomainWhitelist,
+		WeChatServerAddress:            config.WeChatServerAddress,
+		TurnstileSiteKey:               config.TurnstileSiteKey,
+	}
+
+	return handlerParams
 }

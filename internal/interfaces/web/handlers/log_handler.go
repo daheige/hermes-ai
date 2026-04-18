@@ -8,18 +8,18 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 )
 
 // LogHandler 日志处理器
 type LogHandler struct {
-	service *application.LogService
+	service      *application.LogService
+	itemsPerPage int
 }
 
 // NewLogHandler 创建日志处理器
-func NewLogHandler(service *application.LogService) *LogHandler {
-	return &LogHandler{service: service}
+func NewLogHandler(service *application.LogService, itemsPerPage int) *LogHandler {
+	return &LogHandler{service: service, itemsPerPage: itemsPerPage}
 }
 
 // GetAllLogs 获取所有日志
@@ -35,7 +35,7 @@ func (h *LogHandler) GetAllLogs(c *gin.Context) {
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
-	logs, err := h.service.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, p*config.ItemsPerPage, config.ItemsPerPage, channel)
+	logs, err := h.service.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, p*h.itemsPerPage, h.itemsPerPage, channel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -71,7 +71,7 @@ func (h *LogHandler) GetUserLogs(c *gin.Context) {
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	logs, err := h.service.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, p*config.ItemsPerPage, config.ItemsPerPage)
+	logs, err := h.service.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, p*h.itemsPerPage, h.itemsPerPage)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

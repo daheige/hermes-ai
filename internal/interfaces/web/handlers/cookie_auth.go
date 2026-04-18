@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
+	"hermes-ai/internal/infras/logger"
 )
 
 const authCookieName = "access_token"
@@ -27,5 +30,12 @@ func GetUserFromAuthCookie(c *gin.Context, userService *application.UserService)
 		return nil
 	}
 
-	return userService.ValidateAccessToken(token)
+	user, err := userService.ValidateAccessToken(token)
+	if err != nil {
+		slog.With("request_id", logger.GetRequestID(c.Request.Context())).
+			Error("failed to validate access token", "error", err)
+		return nil
+	}
+
+	return user
 }

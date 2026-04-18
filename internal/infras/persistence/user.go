@@ -235,16 +235,19 @@ func (u *UserRepoImpl) IsUserEnabled(userId int) (bool, error) {
 }
 
 // ValidateAccessToken 验证访问令牌
-func (u *UserRepoImpl) ValidateAccessToken(token string) *entity.User {
+func (u *UserRepoImpl) ValidateAccessToken(token string) (*entity.User, error) {
 	if token == "" {
-		return nil
+		return nil, errors.New("token is empty")
 	}
+
 	token = strings.Replace(token, "Bearer ", "", 1)
 	user := &entity.User{}
-	if u.db.Where("access_token = ?", token).First(user).RowsAffected == 1 {
-		return user
+	err := u.db.Where("access_token = ?", token).First(user).Error
+	if err != nil {
+		return nil, err
 	}
-	return nil
+
+	return user, nil
 }
 
 // GetUserQuota 获取用户配额
