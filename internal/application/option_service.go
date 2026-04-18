@@ -247,3 +247,21 @@ func (s *OptionService) UpdateOptionMap(key string, value string) (err error) {
 	}
 	return err
 }
+
+// GetOptionValue 安全地获取指定 key 的配置值
+func (s *OptionService) GetOptionValue(key string) string {
+	s.cfg.OptionMapRWMutex.RLock()
+	defer s.cfg.OptionMapRWMutex.RUnlock()
+	return s.cfg.OptionMap[key]
+}
+
+// GetAllOptions 安全地获取所有配置项的副本（排除敏感字段）
+func (s *OptionService) GetAllOptions() map[string]string {
+	s.cfg.OptionMapRWMutex.RLock()
+	defer s.cfg.OptionMapRWMutex.RUnlock()
+	result := make(map[string]string, len(s.cfg.OptionMap))
+	for k, v := range s.cfg.OptionMap {
+		result[k] = v
+	}
+	return result
+}

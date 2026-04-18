@@ -97,6 +97,7 @@ func main() {
 
 	// Initialize options
 	services.OptionService.InitOptionMap()
+	config.RootUserEmail = services.UserService.GetRootUserEmail()
 	slog.Info(fmt.Sprintf("using theme %s", cfg.Theme))
 
 	// 内存缓存对于redis也是
@@ -318,7 +319,6 @@ func initAppConfig() *config.AppConfig {
 		PreConsumedQuota:               config.PreConsumedQuota,
 		ApproximateTokenEnabled:        config.ApproximateTokenEnabled,
 		RetryTimes:                     config.RetryTimes,
-		RootUserEmail:                  config.RootUserEmail,
 		RequestInterval:                config.RequestInterval,
 		SyncFrequency:                  config.SyncFrequency,
 		BatchUpdateEnabled:             config.BatchUpdateEnabled,
@@ -414,12 +414,10 @@ func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
 			OidcUserinfoEndpoint:          cfg.OidcUserinfoEndpoint,
 			EmailDomainRestrictionEnabled: cfg.EmailDomainRestrictionEnabled,
 			EmailDomainWhitelist:          cfg.EmailDomainWhitelist,
-			OptionMap:                     cfg.OptionMap,
 		},
 		ItemsPerPage:                   cfg.ItemsPerPage,
 		QuotaPerUnit:                   cfg.QuotaPerUnit,
 		DisplayInCurrencyEnabled:       cfg.DisplayInCurrencyEnabled,
-		RootUserEmail:                  &cfg.RootUserEmail,
 		TestPrompt:                     cfg.TestPrompt,
 		ChannelDisableThreshold:        cfg.ChannelDisableThreshold,
 		AutomaticDisableChannelEnabled: cfg.AutomaticDisableChannelEnabled,
@@ -427,7 +425,6 @@ func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
 		DisplayTokenStatEnabled:        cfg.DisplayTokenStatEnabled,
 		DebugEnabled:                   cfg.DebugEnabled,
 		RetryTimes:                     cfg.RetryTimes,
-		OptionMap:                      cfg.OptionMap,
 		ValidThemes:                    cfg.ValidThemes,
 		GithubClientId:                 cfg.GitHubClientId,
 		EmailDomainWhitelist:           cfg.EmailDomainWhitelist,

@@ -39,20 +39,18 @@ type MiscConfig struct {
 	OidcUserinfoEndpoint          string
 	EmailDomainRestrictionEnabled bool
 	EmailDomainWhitelist          []string
-
-	// todo 这个 OptionMap 可能需要实时更新
-	OptionMap map[string]string
 }
 
 // MiscHandler 杂项处理器
 type MiscHandler struct {
-	userService *application.UserService
+	userService   *application.UserService
+	optionService *application.OptionService
 	MiscConfig
 }
 
 // NewMiscHandler 创建杂项处理器
-func NewMiscHandler(userService *application.UserService, conf MiscConfig) *MiscHandler {
-	return &MiscHandler{userService: userService, MiscConfig: conf}
+func NewMiscHandler(userService *application.UserService, optionService *application.OptionService, conf MiscConfig) *MiscHandler {
+	return &MiscHandler{userService: userService, optionService: optionService, MiscConfig: conf}
 }
 
 // GetStatus 获取系统状态
@@ -94,7 +92,7 @@ func (h *MiscHandler) GetNotice(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    h.OptionMap["Notice"],
+		"data":    h.optionService.GetOptionValue("Notice"),
 	})
 }
 
@@ -103,7 +101,7 @@ func (h *MiscHandler) GetAbout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    h.OptionMap["About"],
+		"data":    h.optionService.GetOptionValue("About"),
 	})
 }
 
@@ -112,7 +110,7 @@ func (h *MiscHandler) GetHomePageContent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    h.OptionMap["HomePageContent"],
+		"data":    h.optionService.GetOptionValue("HomePageContent"),
 	})
 }
 

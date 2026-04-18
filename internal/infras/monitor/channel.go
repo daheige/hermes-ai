@@ -28,11 +28,8 @@ func (monitor *ChannelMonitor) notifyRootUser(subject string, content string) {
 			return
 		}
 	}
-	if config.RootUserEmail == "" {
-		config.RootUserEmail = monitor.userService.GetRootUserEmail()
-	}
 
-	err := message2.SendEmail(subject, config.RootUserEmail, content)
+	err := message2.SendEmail(subject, monitor.userService.GetRootUserEmail(), content)
 	if err != nil {
 		slog.Error(fmt.Sprintf("failed to send email: %s", err.Error()))
 	}

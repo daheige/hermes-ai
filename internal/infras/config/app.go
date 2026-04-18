@@ -7,7 +7,7 @@ import (
 
 // AppConfig 应用运行时配置
 // OptionService 通过修改此结构的字段实现运行时配置变更
-// todo 如果管理后台变更后，这个结构体的变量可能需要实时更新到 options 表中
+// 配置变更会通过 OptionService 实时同步到 AppConfig 中
 type AppConfig struct {
 	SystemName               string
 	ServerAddress            string
@@ -19,7 +19,8 @@ type AppConfig struct {
 	DisplayInCurrencyEnabled bool
 	DisplayTokenStatEnabled  bool
 
-	// OptionMap todo 这个如果配置改变，对于handlers目录中的misc_handler.go和option_handler.go改变后，需要实时更新
+	// OptionMap 配置键值对，由 OptionService 统一管理并保证并发安全
+	// handlers 应通过 OptionService 读取，不直接持有此 map 的副本
 	OptionMap        map[string]string
 	OptionMapRWMutex sync.RWMutex
 
@@ -83,8 +84,6 @@ type AppConfig struct {
 	PreConsumedQuota               int64
 	ApproximateTokenEnabled        bool
 	RetryTimes                     int
-
-	RootUserEmail string
 
 	RequestInterval time.Duration
 	SyncFrequency   int

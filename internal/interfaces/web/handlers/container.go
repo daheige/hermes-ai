@@ -41,9 +41,6 @@ type HandlerParams struct {
 	QuotaPerUnit             float64
 	DisplayInCurrencyEnabled bool
 
-	// todo RootUserEmail 这个变量是从 config.RootUserEmail 传递进来的，这里需要修正
-	RootUserEmail *string
-
 	TestPrompt                     string
 	ChannelDisableThreshold        float64
 	AutomaticDisableChannelEnabled bool
@@ -51,7 +48,6 @@ type HandlerParams struct {
 	DisplayTokenStatEnabled        bool
 	DebugEnabled                   bool
 	RetryTimes                     int
-	OptionMap                      map[string]string
 	ValidThemes                    map[string]bool
 	GithubClientId                 string
 	EmailDomainWhitelist           []string
@@ -73,13 +69,11 @@ func NewHandlerContainer(
 				itemsPerPage:             p.ItemsPerPage,
 				quotaPerUnit:             p.QuotaPerUnit,
 				displayInCurrencyEnabled: p.DisplayInCurrencyEnabled,
-				rootUserEmail:            p.RootUserEmail,
 			},
 		),
 		ChannelHandler: NewChannelHandler(services.ChannelService, p.ItemsPerPage),
 		LogHandler:     NewLogHandler(services.LogService, p.ItemsPerPage),
 		OptionHandler: NewOptionHandler(services.OptionService, OptionConfig{
-			OptionMap:            p.OptionMap,
 			ValidThemes:          p.ValidThemes,
 			GithubClientId:       p.GithubClientId,
 			EmailDomainWhitelist: p.EmailDomainWhitelist,
@@ -87,7 +81,7 @@ func NewHandlerContainer(
 			TurnstileSiteKey:     p.TurnstileSiteKey,
 		}),
 		RedemptionHandler: NewRedemptionHandler(services.RedemptionService, p.ItemsPerPage),
-		MiscHandler:       NewMiscHandler(services.UserService, p.MiscConfig),
+		MiscHandler:       NewMiscHandler(services.UserService, services.OptionService, p.MiscConfig),
 		AuthHandler:       NewAuthHandler(services.UserService, p.AuthConfig),
 		ChannelTestHandler: NewChannelTestHandler(
 			services.ChannelService,

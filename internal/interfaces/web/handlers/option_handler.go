@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,14 +13,11 @@ import (
 
 // OptionHandler 配置选项处理器
 type OptionHandler struct {
-	service          *application.OptionService
-	optionMapRWMutex sync.RWMutex
+	service *application.OptionService
 	OptionConfig
 }
 
 type OptionConfig struct {
-	// todo 这个 OptionMap 可能没有实时更新
-	OptionMap            map[string]string
 	ValidThemes          map[string]bool
 	GithubClientId       string
 	EmailDomainWhitelist []string
@@ -39,9 +35,9 @@ func NewOptionHandler(service *application.OptionService, conf OptionConfig) *Op
 
 // GetOptions 获取所有配置选项
 func (h *OptionHandler) GetOptions(c *gin.Context) {
+	optionMap := h.service.GetAllOptions()
 	var options []*entity.Option
-	h.optionMapRWMutex.Lock()
-	for k, v := range h.OptionMap {
+	for k, v := range optionMap {
 		if strings.HasSuffix(k, "Token") || strings.HasSuffix(k, "Secret") {
 			continue
 		}
@@ -52,7 +48,6 @@ func (h *OptionHandler) GetOptions(c *gin.Context) {
 		})
 	}
 
-	h.optionMapRWMutex.Unlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
