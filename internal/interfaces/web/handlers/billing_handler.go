@@ -5,22 +5,27 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	relaymodel "hermes-ai/internal/infras/relay/model"
 )
 
 // BillingHandler 账单处理器
 type BillingHandler struct {
-	userService  *application.UserService
-	tokenService *application.TokenService
+	userService            *application.UserService
+	tokenService           *application.TokenService
+	displayTokenStatEnabled bool
+	displayInCurrencyEnabled bool
+	quotaPerUnit           float64
 }
 
 // NewBillingHandler 创建账单处理器
-func NewBillingHandler(userService *application.UserService, tokenService *application.TokenService) *BillingHandler {
+func NewBillingHandler(userService *application.UserService, tokenService *application.TokenService, displayTokenStatEnabled bool, displayInCurrencyEnabled bool, quotaPerUnit float64) *BillingHandler {
 	return &BillingHandler{
-		userService:  userService,
-		tokenService: tokenService,
+		userService:              userService,
+		tokenService:             tokenService,
+		displayTokenStatEnabled:  displayTokenStatEnabled,
+		displayInCurrencyEnabled: displayInCurrencyEnabled,
+		quotaPerUnit:             quotaPerUnit,
 	}
 }
 
@@ -31,7 +36,7 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 	var err error
 	var token *entity.Token
 	var expiredTime int64
-	if config.DisplayTokenStatEnabled {
+	if h.displayTokenStatEnabled {
 		tokenId := c.GetInt(ctxkey.TokenId)
 		token, err = h.tokenService.GetTokenById(tokenId)
 		if err == nil {
@@ -61,8 +66,8 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 	}
 	quota := remainQuota + usedQuota
 	amount := float64(quota)
-	if config.DisplayInCurrencyEnabled {
-		amount /= config.QuotaPerUnit
+	if h.displayInCurrencyEnabled {
+		amount /= h.quotaPerUnit
 	}
 	if token != nil && token.UnlimitedQuota {
 		amount = 100000000
@@ -83,7 +88,7 @@ func (h *BillingHandler) GetUsage(c *gin.Context) {
 	var quota int64
 	var err error
 	var token *entity.Token
-	if config.DisplayTokenStatEnabled {
+	if h.displayTokenStatEnabled {
 		tokenId := c.GetInt(ctxkey.TokenId)
 		token, err = h.tokenService.GetTokenById(tokenId)
 		quota = token.UsedQuota
@@ -102,8 +107,8 @@ func (h *BillingHandler) GetUsage(c *gin.Context) {
 		return
 	}
 	amount := float64(quota)
-	if config.DisplayInCurrencyEnabled {
-		amount /= config.QuotaPerUnit
+	if h.displayInCurrencyEnabled {
+		amount /= h.quotaPerUnit
 	}
 	usage := OpenAIUsageResponse{
 		Object:     "list",

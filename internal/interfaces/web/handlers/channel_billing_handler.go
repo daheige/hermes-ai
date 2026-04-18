@@ -14,7 +14,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/httpclient"
 	"hermes-ai/internal/infras/monitor"
 	channeltype2 "hermes-ai/internal/infras/relay/channeltype"
@@ -22,14 +21,15 @@ import (
 
 // ChannelBillingHandler 渠道账单处理器
 type ChannelBillingHandler struct {
-	service        *application.ChannelService
-	channelMonitor *monitor.ChannelMonitor
+	service         *application.ChannelService
+	channelMonitor  *monitor.ChannelMonitor
+	requestInterval time.Duration
 }
 
 // NewChannelBillingHandler 创建渠道账单处理器
 func NewChannelBillingHandler(service *application.ChannelService,
-	channelMonitor *monitor.ChannelMonitor) *ChannelBillingHandler {
-	return &ChannelBillingHandler{service: service, channelMonitor: channelMonitor}
+	channelMonitor *monitor.ChannelMonitor, requestInterval time.Duration) *ChannelBillingHandler {
+	return &ChannelBillingHandler{service: service, channelMonitor: channelMonitor, requestInterval: requestInterval}
 }
 
 // OpenAISubscriptionResponse OpenAI订阅响应
@@ -450,7 +450,7 @@ func (h *ChannelBillingHandler) updateAllChannelsBalance() error {
 			}
 		}
 
-		time.Sleep(config.RequestInterval)
+		time.Sleep(h.requestInterval)
 	}
 
 	return nil

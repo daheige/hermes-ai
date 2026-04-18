@@ -9,7 +9,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/network"
 	"hermes-ai/internal/infras/utils"
@@ -17,12 +16,13 @@ import (
 
 // TokenHandler 令牌处理器
 type TokenHandler struct {
-	service *application.TokenService
+	service      *application.TokenService
+	itemsPerPage int
 }
 
 // NewTokenHandler 创建令牌处理器
-func NewTokenHandler(service *application.TokenService) *TokenHandler {
-	return &TokenHandler{service: service}
+func NewTokenHandler(service *application.TokenService, itemsPerPage int) *TokenHandler {
+	return &TokenHandler{service: service, itemsPerPage: itemsPerPage}
 }
 
 // GetAllTokens 获取用户所有令牌
@@ -34,7 +34,7 @@ func (h *TokenHandler) GetAllTokens(c *gin.Context) {
 	}
 
 	order := c.Query("order")
-	tokens, err := h.service.GetAllUserTokens(userId, p*config.ItemsPerPage, config.ItemsPerPage, order)
+	tokens, err := h.service.GetAllUserTokens(userId, p*h.itemsPerPage, h.itemsPerPage, order)
 
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

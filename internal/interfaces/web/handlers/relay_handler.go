@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"hermes-ai/internal/application"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/logger"
@@ -26,11 +25,13 @@ import (
 type RelayHandler struct {
 	channelService *application.ChannelService
 	channelMonitor *monitor2.ChannelMonitor
+	debugEnabled   bool
+	retryTimes     int
 }
 
 // NewRelayHandler 创建转发处理器
-func NewRelayHandler(channelService *application.ChannelService, monitor *monitor2.ChannelMonitor) *RelayHandler {
-	return &RelayHandler{channelService: channelService, channelMonitor: monitor}
+func NewRelayHandler(channelService *application.ChannelService, monitor *monitor2.ChannelMonitor, debugEnabled bool, retryTimes int) *RelayHandler {
+	return &RelayHandler{channelService: channelService, channelMonitor: monitor, debugEnabled: debugEnabled, retryTimes: retryTimes}
 }
 
 func (h *RelayHandler) relayHelper(c *gin.Context, relayMode int) *model.ErrorWithStatusCode {
@@ -58,7 +59,7 @@ func (h *RelayHandler) relayHelper(c *gin.Context, relayMode int) *model.ErrorWi
 func (h *RelayHandler) Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	relayMode := relaymode2.GetByPath(c.Request.URL.Path)
-	if config.DebugEnabled {
+	if h.debugEnabled {
 		requestBody, _ := ginzo.GetRequestBody(c)
 		slog.With("request_id", logger.GetRequestID(ctx)).
 			Debug(fmt.Sprintf("request body: %s", string(requestBody)))
@@ -77,7 +78,7 @@ func (h *RelayHandler) Relay(c *gin.Context) {
 	originalModel := c.GetString(ctxkey.OriginalModel)
 	go h.processChannelRelayError(ctx, userId, channelId, channelName, *bizErr)
 	requestId := c.GetString(ctxkey.RequestIdKey)
-	retryTimes := config.RetryTimes
+	retryTimes := h.retryTimes
 	if !h.shouldRetry(c, bizErr.StatusCode) {
 		slog.With("request_id", logger.GetRequestID(ctx)).
 			Error(fmt.Sprintf("relay error happen, status code is %d, won't retry in this case", bizErr.StatusCode))

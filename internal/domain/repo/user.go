@@ -58,7 +58,7 @@ type UserRepository interface {
 	// IsUserEnabled 用户是否启用
 	IsUserEnabled(userId int) (bool, error)
 	// ValidateAccessToken 验证访问令牌
-	ValidateAccessToken(token string) *entity.User
+	ValidateAccessToken(token string) (*entity.User, error)
 
 	// GetUserQuota 获取用户配额
 	GetUserQuota(id int) (int64, error)

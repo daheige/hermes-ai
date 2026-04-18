@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ratelimit"
 	"hermes-ai/internal/infras/rds"
 )
@@ -19,22 +19,55 @@ var (
 	inMemoryRateLimiter ratelimit.InMemoryRateLimiter
 )
 
-func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
+type RateLimitMiddleware struct {
+	rdb redis.UniversalClient
+
+	RateLimitConfig
+}
+
+type RateLimitConfig struct {
+	GlobalWebRateLimitNum      int
+	GlobalWebRateLimitDuration int64
+
+	GlobalApiRateLimitNum      int
+	GlobalApiRateLimitDuration int64
+
+	CriticalRateLimitNum      int
+	CriticalRateLimitDuration int64
+
+	DownloadRateLimitNum      int
+	DownloadRateLimitDuration int64
+
+	UploadRateLimitNum int
+
+	UploadRateLimitDuration int64
+
+	RateLimitKeyExpirationDuration time.Duration
+
+	DebugEnabled bool
+}
+
+// NewRateLimitMiddleware 创建ratelimit
+func NewRateLimitMiddleware(rdb redis.UniversalClient, conf RateLimitConfig) *RateLimitMiddleware {
+	return &RateLimitMiddleware{rdb: rdb, RateLimitConfig: conf}
+}
+
+func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	ctx := context.Background()
-	rdb := rds.RDB
 	key := "rateLimit:" + mark + c.ClientIP()
-	listLength, err := rdb.LLen(ctx, key).Result()
+	listLength, err := r.rdb.LLen(ctx, key).Result()
 	if err != nil {
 		fmt.Println(err.Error())
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
 	}
+
 	if listLength < int64(maxRequestNum) {
-		rdb.LPush(ctx, key, time.Now().Format(timeFormat))
-		rdb.Expire(ctx, key, config.RateLimitKeyExpirationDuration)
+		r.rdb.LPush(ctx, key, time.Now().Format(timeFormat))
+		r.rdb.Expire(ctx, key, r.RateLimitKeyExpirationDuration)
 	} else {
-		oldTimeStr, _ := rdb.LIndex(ctx, key, -1).Result()
+		oldTimeStr, _ := r.rdb.LIndex(ctx, key, -1).Result()
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
 			fmt.Println(err)
@@ -54,19 +87,19 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		// time.Since will return negative number!
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
-			rdb.Expire(ctx, key, config.RateLimitKeyExpirationDuration)
+			r.rdb.Expire(ctx, key, r.RateLimitKeyExpirationDuration)
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
 		}
 
-		rdb.LPush(ctx, key, time.Now().Format(timeFormat))
-		rdb.LTrim(ctx, key, 0, int64(maxRequestNum-1))
-		rdb.Expire(ctx, key, config.RateLimitKeyExpirationDuration)
+		r.rdb.LPush(ctx, key, time.Now().Format(timeFormat))
+		r.rdb.LTrim(ctx, key, 0, int64(maxRequestNum-1))
+		r.rdb.Expire(ctx, key, r.RateLimitKeyExpirationDuration)
 	}
 }
 
-func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
+func (r *RateLimitMiddleware) memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
 		c.Status(http.StatusTooManyRequests)
@@ -75,8 +108,8 @@ func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark s
 	}
 }
 
-func rateLimitFactory(maxRequestNum int, duration int64, mark string) gin.HandlerFunc {
-	if maxRequestNum == 0 || config.DebugEnabled {
+func (r *RateLimitMiddleware) rateLimitFactory(maxRequestNum int, duration int64, mark string) gin.HandlerFunc {
+	if maxRequestNum == 0 || r.DebugEnabled {
 		return func(c *gin.Context) {
 			c.Next()
 		}
@@ -84,33 +117,33 @@ func rateLimitFactory(maxRequestNum int, duration int64, mark string) gin.Handle
 
 	if rds.RedisEnabled {
 		return func(c *gin.Context) {
-			redisRateLimiter(c, maxRequestNum, duration, mark)
+			r.redisRateLimiter(c, maxRequestNum, duration, mark)
 		}
 	}
 
 	// It's safe to call multi times.
-	inMemoryRateLimiter.Init(config.RateLimitKeyExpirationDuration)
+	inMemoryRateLimiter.Init(r.RateLimitKeyExpirationDuration)
 	return func(c *gin.Context) {
-		memoryRateLimiter(c, maxRequestNum, duration, mark)
+		r.memoryRateLimiter(c, maxRequestNum, duration, mark)
 	}
 }
 
-func GlobalWebRateLimit() gin.HandlerFunc {
-	return rateLimitFactory(config.GlobalWebRateLimitNum, config.GlobalWebRateLimitDuration, "GW")
+func (r *RateLimitMiddleware) GlobalWebRateLimit() gin.HandlerFunc {
+	return r.rateLimitFactory(r.GlobalWebRateLimitNum, r.GlobalWebRateLimitDuration, "GW")
 }
 
-func GlobalAPIRateLimit() gin.HandlerFunc {
-	return rateLimitFactory(config.GlobalApiRateLimitNum, config.GlobalApiRateLimitDuration, "GA")
+func (r *RateLimitMiddleware) GlobalAPIRateLimit() gin.HandlerFunc {
+	return r.rateLimitFactory(r.GlobalApiRateLimitNum, r.GlobalApiRateLimitDuration, "GA")
 }
 
-func CriticalRateLimit() gin.HandlerFunc {
-	return rateLimitFactory(config.CriticalRateLimitNum, config.CriticalRateLimitDuration, "CT")
+func (r *RateLimitMiddleware) CriticalRateLimit() gin.HandlerFunc {
+	return r.rateLimitFactory(r.CriticalRateLimitNum, r.CriticalRateLimitDuration, "CT")
 }
 
-func DownloadRateLimit() gin.HandlerFunc {
-	return rateLimitFactory(config.DownloadRateLimitNum, config.DownloadRateLimitDuration, "DW")
+func (r *RateLimitMiddleware) DownloadRateLimit() gin.HandlerFunc {
+	return r.rateLimitFactory(r.DownloadRateLimitNum, r.DownloadRateLimitDuration, "DW")
 }
 
-func UploadRateLimit() gin.HandlerFunc {
-	return rateLimitFactory(config.UploadRateLimitNum, config.UploadRateLimitDuration, "UP")
+func (r *RateLimitMiddleware) UploadRateLimit() gin.HandlerFunc {
+	return r.rateLimitFactory(r.UploadRateLimitNum, r.UploadRateLimitDuration, "UP")
 }

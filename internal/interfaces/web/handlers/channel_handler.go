@@ -9,18 +9,18 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/utils"
 )
 
 // ChannelHandler 渠道处理器
 type ChannelHandler struct {
-	service *application.ChannelService
+	service      *application.ChannelService
+	itemsPerPage int
 }
 
 // NewChannelHandler 创建渠道处理器
-func NewChannelHandler(service *application.ChannelService) *ChannelHandler {
-	return &ChannelHandler{service: service}
+func NewChannelHandler(service *application.ChannelService, itemsPerPage int) *ChannelHandler {
+	return &ChannelHandler{service: service, itemsPerPage: itemsPerPage}
 }
 
 // GetAllChannels 获取所有渠道
@@ -29,7 +29,7 @@ func (h *ChannelHandler) GetAllChannels(c *gin.Context) {
 	if p < 0 {
 		p = 0
 	}
-	channels, err := h.service.GetAllChannels(p*config.ItemsPerPage, config.ItemsPerPage, "limited")
+	channels, err := h.service.GetAllChannels(p*h.itemsPerPage, h.itemsPerPage, "limited")
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

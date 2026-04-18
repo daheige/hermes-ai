@@ -10,7 +10,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/i18n"
 	"hermes-ai/internal/infras/utils"
@@ -22,12 +21,29 @@ type UserHandler struct {
 	service           *application.UserService
 	logService        *application.LogService
 	redemptionService *application.RedemptionService
+	*UserHandlerParams
+}
+
+type UserHandlerParams struct {
+	itemsPerPage             int
+	quotaPerUnit             float64
+	displayInCurrencyEnabled bool
+	rootUserEmail            *string
 }
 
 // NewUserHandler 创建用户处理器
-func NewUserHandler(service *application.UserService, logService *application.LogService,
-	redemptionService *application.RedemptionService) *UserHandler {
-	return &UserHandler{service: service, logService: logService, redemptionService: redemptionService}
+func NewUserHandler(
+	service *application.UserService,
+	logService *application.LogService,
+	redemptionService *application.RedemptionService,
+	userHandlerParams *UserHandlerParams,
+) *UserHandler {
+	return &UserHandler{
+		service:           service,
+		logService:        logService,
+		redemptionService: redemptionService,
+		UserHandlerParams: userHandlerParams,
+	}
 }
 
 // GetAllUsers 获取所有用户
@@ -38,7 +54,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	order := c.DefaultQuery("order", "")
-	users, err := h.service.GetAllUsers(p*config.ItemsPerPage, config.ItemsPerPage, order)
+	users, err := h.service.GetAllUsers(p*h.itemsPerPage, h.itemsPerPage, order)
 
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -146,7 +162,8 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 	}
 	user.AccessToken = utils.UUID()
 
-	if config.DB.Where("access_token = ?", user.AccessToken).First(user).RowsAffected != 0 {
+	userEntry, _ := h.service.ValidateAccessToken(user.AccessToken)
+	if userEntry != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请重试，系统生成的 UUID 竟然重复了！",
@@ -154,7 +171,8 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Update(user, false); err != nil {
+	err = h.service.Update(user, false)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -298,8 +316,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	if originUser.Quota != req.Quota {
 		h.logService.RecordLog(ctx, originUser.Id, entity.LogTypeManage, fmt.Sprintf("管理员将用户额度从 %s修改为 %s",
-			utils.LogQuota(originUser.Quota, config.QuotaPerUnit, config.DisplayInCurrencyEnabled),
-			utils.LogQuota(req.Quota, config.QuotaPerUnit, config.DisplayInCurrencyEnabled)),
+			utils.LogQuota(originUser.Quota, h.quotaPerUnit, h.displayInCurrencyEnabled),
+			utils.LogQuota(req.Quota, h.quotaPerUnit, h.displayInCurrencyEnabled)),
 		)
 	}
 
@@ -505,8 +523,16 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 	user := &entity.User{
 		Username: req.Username,
 	}
+
 	// Fill attributes
-	config.DB.Where(user).First(user)
+	user, err := h.service.GetUserByName(req.Username)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户不存在或查询错误",
+		})
+		return
+	}
 	if user.Id == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -514,6 +540,7 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 		})
 		return
 	}
+
 	myRole := c.GetInt(ctxkey.Role)
 	if myRole <= user.Role && myRole != entity.RoleRootUser {
 		c.JSON(http.StatusOK, gin.H{
@@ -633,8 +660,9 @@ func (h *UserHandler) EmailBind(c *gin.Context) {
 		return
 	}
 	if user.Role == entity.RoleRootUser {
-		config.RootUserEmail = email
+		*h.rootUserEmail = email
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -701,7 +729,7 @@ func (h *UserHandler) AdminTopUp(c *gin.Context) {
 		return
 	}
 	if req.Remark == "" {
-		req.Remark = fmt.Sprintf("通过 API 充值 %s", utils.LogQuota(int64(req.Quota), config.QuotaPerUnit, config.DisplayInCurrencyEnabled))
+		req.Remark = fmt.Sprintf("通过 API 充值 %s", utils.LogQuota(int64(req.Quota), h.quotaPerUnit, h.displayInCurrencyEnabled))
 	}
 
 	h.logService.RecordTopupLog(ctx, req.UserId, req.Remark, req.Quota)

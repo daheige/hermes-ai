@@ -12,29 +12,34 @@ import (
 func SetApiRouter(router *gin.Engine, h *handlers.HandlerContainers, mw *middleware.Middlewares) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
-	apiRouter.Use(middleware.GlobalAPIRateLimit())
+	apiRouter.Use(mw.RateLimitMiddleware.GlobalAPIRateLimit())
 
 	apiRouter.GET("/status", h.MiscHandler.GetStatus)
 	apiRouter.GET("/models", mw.AuthMiddleware.UserAuth(), h.ModelHandler.DashboardListModels)
 	apiRouter.GET("/notice", h.MiscHandler.GetNotice)
 	apiRouter.GET("/about", h.MiscHandler.GetAbout)
 	apiRouter.GET("/home_page_content", h.MiscHandler.GetHomePageContent)
-	apiRouter.GET("/verification", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), h.MiscHandler.SendEmailVerification)
-	apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), h.MiscHandler.SendPasswordResetEmail)
-	apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), h.MiscHandler.ResetPassword)
-	apiRouter.GET("/oauth/github", middleware.CriticalRateLimit(), h.GitHubHandler.GitHubOAuth)
-	apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), h.OidcUserHandler.OidcAuth)
-	apiRouter.GET("/oauth/lark", middleware.CriticalRateLimit(), h.LarkUserHandler.LarkOAuth)
-	apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), h.GitHubHandler.GenerateOAuthCode)
-	apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), h.WeChatUserHandler.WeChatAuth)
-	apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), mw.AuthMiddleware.UserAuth(), h.WeChatUserHandler.WeChatBind)
-	apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), mw.AuthMiddleware.UserAuth(), h.UserHandler.EmailBind)
+	apiRouter.GET("/verification", mw.RateLimitMiddleware.CriticalRateLimit(),
+		mw.TurnstileMiddleware.TurnstileCheck(), h.MiscHandler.SendEmailVerification)
+	apiRouter.GET("/reset_password", mw.RateLimitMiddleware.CriticalRateLimit(),
+		mw.TurnstileMiddleware.TurnstileCheck(), h.MiscHandler.SendPasswordResetEmail)
+	apiRouter.POST("/user/reset", mw.RateLimitMiddleware.CriticalRateLimit(), h.MiscHandler.ResetPassword)
+	apiRouter.GET("/oauth/github", mw.RateLimitMiddleware.CriticalRateLimit(), h.GitHubHandler.GitHubOAuth)
+	apiRouter.GET("/oauth/oidc", mw.RateLimitMiddleware.CriticalRateLimit(), h.OidcUserHandler.OidcAuth)
+	apiRouter.GET("/oauth/lark", mw.RateLimitMiddleware.CriticalRateLimit(), h.LarkUserHandler.LarkOAuth)
+	apiRouter.GET("/oauth/state", mw.RateLimitMiddleware.CriticalRateLimit(), h.GitHubHandler.GenerateOAuthCode)
+	apiRouter.GET("/oauth/wechat", mw.RateLimitMiddleware.CriticalRateLimit(), h.WeChatUserHandler.WeChatAuth)
+	apiRouter.GET("/oauth/wechat/bind", mw.RateLimitMiddleware.CriticalRateLimit(), mw.AuthMiddleware.UserAuth(),
+		h.WeChatUserHandler.WeChatBind)
+	apiRouter.GET("/oauth/email/bind", mw.RateLimitMiddleware.CriticalRateLimit(), mw.AuthMiddleware.UserAuth(),
+		h.UserHandler.EmailBind)
 	apiRouter.POST("/topup", mw.AuthMiddleware.AdminAuth(), h.UserHandler.AdminTopUp)
 
 	userRoute := apiRouter.Group("/user")
 	{
-		userRoute.POST("/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), h.AuthHandler.Register)
-		userRoute.POST("/login", middleware.CriticalRateLimit(), h.AuthHandler.Login)
+		userRoute.POST("/register", mw.RateLimitMiddleware.CriticalRateLimit(),
+			mw.TurnstileMiddleware.TurnstileCheck(), h.AuthHandler.Register)
+		userRoute.POST("/login", mw.RateLimitMiddleware.CriticalRateLimit(), h.AuthHandler.Login)
 		userRoute.GET("/logout", h.AuthHandler.Logout)
 
 		selfRoute := userRoute.Group("/")

@@ -12,7 +12,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 )
 
@@ -22,23 +21,31 @@ type wechatLoginResponse struct {
 	Data    string `json:"data"`
 }
 
+type WeChatUserConfig struct {
+	WeChatServerAddress string
+	WeChatServerToken   string
+	WeChatAuthEnabled   bool
+	RegisterEnabled     bool
+}
+
 type WeChatUserHandler struct {
 	userService *application.UserService
+	WeChatUserConfig
 }
 
-func NewWechatLoginHandler(userService *application.UserService) *WeChatUserHandler {
-	return &WeChatUserHandler{userService: userService}
+func NewWechatLoginHandler(userService *application.UserService, conf WeChatUserConfig) *WeChatUserHandler {
+	return &WeChatUserHandler{userService: userService, WeChatUserConfig: conf}
 }
 
-func getWeChatIdByCode(code string) (string, error) {
+func (h *WeChatUserHandler) getWeChatIdByCode(code string) (string, error) {
 	if code == "" {
 		return "", errors.New("无效的参数")
 	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", config.WeChatServerAddress, code), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", h.WeChatServerAddress, code), nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", config.WeChatServerToken)
+	req.Header.Set("Authorization", h.WeChatServerToken)
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
@@ -64,7 +71,7 @@ func getWeChatIdByCode(code string) (string, error) {
 
 func (h *WeChatUserHandler) WeChatAuth(c *gin.Context) {
 	ctx := c.Request.Context()
-	if !config.WeChatAuthEnabled {
+	if !h.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员未开启通过微信登录以及注册",
 			"success": false,
@@ -72,7 +79,7 @@ func (h *WeChatUserHandler) WeChatAuth(c *gin.Context) {
 		return
 	}
 	code := c.Query("code")
-	wechatId, err := getWeChatIdByCode(code)
+	wechatId, err := h.getWeChatIdByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": err.Error(),
@@ -93,7 +100,7 @@ func (h *WeChatUserHandler) WeChatAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if config.RegisterEnabled {
+		if h.RegisterEnabled {
 			user = &entity.User{
 				WeChatId:    wechatId,
 				Username:    "wechat_" + strconv.Itoa(h.userService.GetMaxUserId()+1),
@@ -129,7 +136,7 @@ func (h *WeChatUserHandler) WeChatAuth(c *gin.Context) {
 }
 
 func (h *WeChatUserHandler) WeChatBind(c *gin.Context) {
-	if !config.WeChatAuthEnabled {
+	if !h.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员未开启通过微信登录以及注册",
 			"success": false,
@@ -137,7 +144,7 @@ func (h *WeChatUserHandler) WeChatBind(c *gin.Context) {
 		return
 	}
 	code := c.Query("code")
-	wechatId, err := getWeChatIdByCode(code)
+	wechatId, err := h.getWeChatIdByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": err.Error(),

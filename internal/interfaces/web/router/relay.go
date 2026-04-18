@@ -18,7 +18,8 @@ func SetRelayRouter(router *gin.Engine, hc *handlers.HandlerContainers, mw *midd
 	modelsRouter.GET("/:model", hc.ModelHandler.RetrieveModel)
 
 	relayV1Router := router.Group("/v1")
-	relayV1Router.Use(middleware.RelayPanicRecover(), mw.AuthMiddleware.TokenAuth(), mw.DistributorMiddleware.Distribute())
+	relayV1Router.Use(middleware.RelayPanicRecover(), mw.AuthMiddleware.TokenAuth(),
+		mw.DistributorMiddleware.Distribute())
 
 	relayV1Router.Any("/oneapi/proxy/:channelid/*target", hc.RelayHandler.Relay)
 	relayV1Router.POST("/completions", hc.RelayHandler.Relay)

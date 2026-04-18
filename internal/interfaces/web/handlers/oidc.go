@@ -14,7 +14,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 )
 
 type OidcResponse struct {
@@ -34,30 +33,41 @@ type OidcUser struct {
 	Picture           string `json:"picture"`
 }
 
+type OidcUserConfig struct {
+	OidcClientId          string
+	OidcClientSecret      string
+	ServerAddress         string
+	OidcTokenEndpoint     string
+	OidcUserinfoEndpoint  string
+	OidcEnabled           bool
+	RegisterEnabled       bool
+}
+
 type OidcUserHandler struct {
 	userService *application.UserService
+	OidcUserConfig
 }
 
-func NewOidcUserHandler(userService *application.UserService) *OidcUserHandler {
-	return &OidcUserHandler{userService: userService}
+func NewOidcUserHandler(userService *application.UserService, conf OidcUserConfig) *OidcUserHandler {
+	return &OidcUserHandler{userService: userService, OidcUserConfig: conf}
 }
 
-func getOidcUserInfoByCode(code string) (*OidcUser, error) {
+func (h *OidcUserHandler) getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	if code == "" {
 		return nil, errors.New("无效的参数")
 	}
 	values := map[string]string{
-		"client_id":     config.OidcClientId,
-		"client_secret": config.OidcClientSecret,
+		"client_id":     h.OidcClientId,
+		"client_secret": h.OidcClientSecret,
 		"code":          code,
 		"grant_type":    "authorization_code",
-		"redirect_uri":  fmt.Sprintf("%s/oauth/oidc", config.ServerAddress),
+		"redirect_uri":  fmt.Sprintf("%s/oauth/oidc", h.ServerAddress),
 	}
 	jsonData, err := json.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest("POST", config.OidcTokenEndpoint, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", h.OidcTokenEndpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +88,7 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 	if err != nil {
 		return nil, err
 	}
-	req, err = http.NewRequest("GET", config.OidcUserinfoEndpoint, nil)
+	req, err = http.NewRequest("GET", h.OidcUserinfoEndpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +124,7 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 		return
 	}
 
-	if !config.OidcEnabled {
+	if !h.OidcEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 OIDC 登录以及注册",
@@ -122,7 +132,7 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 		return
 	}
 	code := c.Query("code")
-	oidcUser, err := getOidcUserInfoByCode(code)
+	oidcUser, err := h.getOidcUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -142,7 +152,7 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if config.RegisterEnabled {
+		if h.RegisterEnabled {
 			user = &entity.User{
 				OidcId:      oidcUser.OpenID,
 				Email:       oidcUser.Email,
@@ -186,7 +196,7 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 }
 
 func (h *OidcUserHandler) OidcBind(c *gin.Context, currentUser *entity.User) {
-	if !config.OidcEnabled {
+	if !h.OidcEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未开启通过 OIDC 登录以及注册",
@@ -195,7 +205,7 @@ func (h *OidcUserHandler) OidcBind(c *gin.Context, currentUser *entity.User) {
 	}
 
 	code := c.Query("code")
-	oidcUser, err := getOidcUserInfoByCode(code)
+	oidcUser, err := h.getOidcUserInfoByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

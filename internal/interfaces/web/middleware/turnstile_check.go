@@ -7,17 +7,25 @@ import (
 	"net/url"
 
 	"github.com/gin-gonic/gin"
-
-	"hermes-ai/internal/infras/config"
 )
+
+type TurnstileMiddleware struct {
+	turnstileCheckEnabled bool
+	turnstileSecretKey    string
+}
+
+// NewTurnstileMiddleware 创建 TurnstileMiddleware
+func NewTurnstileMiddleware(turnstileCheckEnabled bool, turnstileSecretKey string) *TurnstileMiddleware {
+	return &TurnstileMiddleware{turnstileCheckEnabled, turnstileSecretKey}
+}
 
 type turnstileCheckResponse struct {
 	Success bool `json:"success"`
 }
 
-func TurnstileCheck() gin.HandlerFunc {
+func (m *TurnstileMiddleware) TurnstileCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if config.TurnstileCheckEnabled {
+		if m.turnstileCheckEnabled {
 			turnstileChecked, _ := c.Cookie("turnstile_checked")
 			if turnstileChecked == "true" {
 				c.Next()
@@ -32,8 +40,9 @@ func TurnstileCheck() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
+
 			rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
-				"secret":   {config.TurnstileSecretKey},
+				"secret":   {m.turnstileSecretKey},
 				"response": {response},
 				"remoteip": {c.ClientIP()},
 			})
@@ -69,6 +78,7 @@ func TurnstileCheck() gin.HandlerFunc {
 			// 1 hour for turnstile_checked cookie
 			c.SetCookie("turnstile_checked", "true", 3600, "/", "", false, false)
 		}
+
 		c.Next()
 	}
 }

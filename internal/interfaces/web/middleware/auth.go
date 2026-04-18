@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/infras/blacklist"
 	"hermes-ai/internal/infras/ctxkey"
+	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/network"
 )
 
@@ -24,27 +26,36 @@ func NewAuthMiddleware(userService *application.UserService, tokenService *appli
 }
 
 func (a *AuthMiddleware) authHelper(c *gin.Context, minRole int) {
-	var user *entity.User
+	var (
+		user *entity.User
+		err  error
+	)
 
 	// 1. 优先从 Cookie 读取 access_token
 	token, _ := c.Cookie("access_token")
 	if token != "" {
-		user = a.userService.ValidateAccessToken(token)
+		user, err = a.userService.ValidateAccessToken(token)
+		if err != nil {
+			slog.With("request_id", logger.GetRequestID(c.Request.Context())).Info("access token invalid")
+		}
 	}
 
 	// 2. Cookie 中没有，fallback 到 Authorization header
 	if user == nil || user.Username == "" {
 		accessToken := c.GetHeader("Authorization")
 		if accessToken == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": "无权进行此操作，未登录且未提供 access token",
 			})
-			c.Abort()
 			return
 		}
 
-		user = a.userService.ValidateAccessToken(accessToken)
+		user, err = a.userService.ValidateAccessToken(accessToken)
+		if err != nil {
+			slog.With("request_id", logger.GetRequestID(c.Request.Context())).Info("access token invalid")
+		}
+
 		if user == nil || user.Username == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

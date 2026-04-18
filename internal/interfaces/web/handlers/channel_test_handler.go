@@ -20,7 +20,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/message"
@@ -37,21 +36,30 @@ import (
 
 // ChannelTestHandler 渠道测试处理器
 type ChannelTestHandler struct {
-	service        *application.ChannelService
-	logService     *application.LogService
-	userService    *application.UserService
-	channelMonitor *monitor2.ChannelMonitor
+	service                     *application.ChannelService
+	logService                  *application.LogService
+	userService                 *application.UserService
+	channelMonitor              *monitor2.ChannelMonitor
+	testPrompt                  string
+	channelDisableThreshold        float64
+	automaticDisableChannelEnabled bool
+	requestInterval                time.Duration
 }
 
 // NewChannelTestHandler 创建渠道测试处理器
 func NewChannelTestHandler(service *application.ChannelService,
 	logService *application.LogService,
-	userService *application.UserService, channelMonitor *monitor2.ChannelMonitor) *ChannelTestHandler {
+	userService *application.UserService, channelMonitor *monitor2.ChannelMonitor,
+	testPrompt string, channelDisableThreshold float64, automaticDisableChannelEnabled bool, requestInterval time.Duration) *ChannelTestHandler {
 	return &ChannelTestHandler{
-		service:        service,
-		logService:     logService,
-		userService:    userService,
-		channelMonitor: channelMonitor,
+		service:                        service,
+		logService:                     logService,
+		userService:                    userService,
+		channelMonitor:                 channelMonitor,
+		testPrompt:                     testPrompt,
+		channelDisableThreshold:        channelDisableThreshold,
+		automaticDisableChannelEnabled: automaticDisableChannelEnabled,
+		requestInterval:                requestInterval,
 	}
 }
 
@@ -64,7 +72,7 @@ func (h *ChannelTestHandler) buildTestRequest(model string) *model2.GeneralOpenA
 	}
 	testMessage := model2.Message{
 		Role:    "user",
-		Content: config.TestPrompt,
+		Content: h.testPrompt,
 	}
 	testRequest.Messages = append(testRequest.Messages, testMessage)
 	return testRequest
@@ -237,10 +245,6 @@ var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
 func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scope string) error {
-	if config.RootUserEmail == "" {
-		config.RootUserEmail = h.userService.GetRootUserEmail()
-	}
-
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
 		testAllChannelsLock.Unlock()
@@ -252,7 +256,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 	if err != nil {
 		return err
 	}
-	var disableThreshold = int64(config.ChannelDisableThreshold * 1000)
+	var disableThreshold = int64(h.channelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
 	}
@@ -266,7 +270,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 			milliseconds := tok.Sub(tik).Milliseconds()
 			if isChannelEnabled && milliseconds > disableThreshold {
 				err = fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-				if config.AutomaticDisableChannelEnabled {
+				if h.automaticDisableChannelEnabled {
 					h.channelMonitor.DisableChannel(channel.Id, channel.Name, err.Error())
 				} else {
 					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%d）测试超时", channel.Name, channel.Id), "", err.Error())
@@ -280,7 +284,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 			}
 
 			h.service.UpdateResponseTime(channel.Id, milliseconds)
-			time.Sleep(config.RequestInterval)
+			time.Sleep(h.requestInterval)
 		}
 		testAllChannelsLock.Lock()
 		testAllChannelsRunning = false
