@@ -20,6 +20,7 @@ type OptionHandler struct {
 }
 
 type OptionConfig struct {
+	// todo 这个 OptionMap 可能没有实时更新
 	OptionMap            map[string]string
 	ValidThemes          map[string]bool
 	GithubClientId       string

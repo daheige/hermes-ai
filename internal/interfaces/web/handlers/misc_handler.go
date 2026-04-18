@@ -39,7 +39,9 @@ type MiscConfig struct {
 	OidcUserinfoEndpoint          string
 	EmailDomainRestrictionEnabled bool
 	EmailDomainWhitelist          []string
-	OptionMap                     map[string]string
+
+	// todo 这个 OptionMap 可能需要实时更新
+	OptionMap map[string]string
 }
 
 // MiscHandler 杂项处理器

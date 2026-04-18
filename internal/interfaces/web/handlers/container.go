@@ -37,10 +37,13 @@ type HandlerParams struct {
 	OidcUserConfig   OidcUserConfig
 	MiscConfig       MiscConfig
 
-	ItemsPerPage                   int
-	QuotaPerUnit                   float64
-	DisplayInCurrencyEnabled       bool
-	RootUserEmail                  *string
+	ItemsPerPage             int
+	QuotaPerUnit             float64
+	DisplayInCurrencyEnabled bool
+
+	// todo RootUserEmail 这个变量是从 config.RootUserEmail 传递进来的，这里需要修正
+	RootUserEmail *string
+
 	TestPrompt                     string
 	ChannelDisableThreshold        float64
 	AutomaticDisableChannelEnabled bool
