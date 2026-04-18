@@ -28,5 +28,20 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+.claude
+.idea
+.vscode
+upload
+*.db
+build
+*.db-journal
+logs
+data
+/web/node_modules
+cmd.md
+*.log
+temp
+.DS_Store
+logs/*.log

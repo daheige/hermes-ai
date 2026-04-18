@@ -1,0 +1,18 @@
+# File path: /etc/systemd/system/ai-gateway.service
+# sudo systemctl daemon-reload
+# sudo systemctl start ai-gateway
+# sudo systemctl enable ai-gateway
+# sudo systemctl status ai-gateway
+[Unit]
+Description=hermes-ai Service
+After=network.target
+
+[Service]
+User=ubuntu  # 注意修改用户名
+WorkingDirectory=/path/to/ai-gateway  # 注意修改路径
+ExecStart=/path/to/ai-gateway/ai-gateway --port 3000 --log-dir /path/to/ai-gateway/logs  # 注意修改路径和端口号
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
