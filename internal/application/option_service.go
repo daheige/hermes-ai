@@ -15,11 +15,12 @@ import (
 // OptionService 配置选项服务
 type OptionService struct {
 	optionRepo repo.OptionRepository
+	cfg        *config.AppConfig
 }
 
 // NewOptionService 创建配置选项服务
-func NewOptionService(optionRepo repo.OptionRepository) *OptionService {
-	return &OptionService{optionRepo: optionRepo}
+func NewOptionService(optionRepo repo.OptionRepository, cfg *config.AppConfig) *OptionService {
+	return &OptionService{optionRepo: optionRepo, cfg: cfg}
 }
 
 // AllOption 获取所有配置选项
@@ -29,60 +30,60 @@ func (s *OptionService) AllOption() ([]*entity.Option, error) {
 
 // InitOptionMap 初始化配置选项Map
 func (s *OptionService) InitOptionMap() {
-	config.OptionMapRWMutex.Lock()
-	config.OptionMap = make(map[string]string)
-	config.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(config.PasswordLoginEnabled)
-	config.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(config.PasswordRegisterEnabled)
-	config.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(config.EmailVerificationEnabled)
-	config.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(config.GitHubOAuthEnabled)
-	config.OptionMap["OidcEnabled"] = strconv.FormatBool(config.OidcEnabled)
-	config.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(config.WeChatAuthEnabled)
-	config.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(config.TurnstileCheckEnabled)
-	config.OptionMap["RegisterEnabled"] = strconv.FormatBool(config.RegisterEnabled)
-	config.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(config.AutomaticDisableChannelEnabled)
-	config.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(config.AutomaticEnableChannelEnabled)
-	config.OptionMap["ApproximateTokenEnabled"] = strconv.FormatBool(config.ApproximateTokenEnabled)
-	config.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(config.LogConsumeEnabled)
-	config.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(config.DisplayInCurrencyEnabled)
-	config.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(config.DisplayTokenStatEnabled)
-	config.OptionMap["ChannelDisableThreshold"] = strconv.FormatFloat(config.ChannelDisableThreshold, 'f', -1, 64)
-	config.OptionMap["EmailDomainRestrictionEnabled"] = strconv.FormatBool(config.EmailDomainRestrictionEnabled)
-	config.OptionMap["EmailDomainWhitelist"] = strings.Join(config.EmailDomainWhitelist, ",")
-	config.OptionMap["SMTPServer"] = ""
-	config.OptionMap["SMTPFrom"] = ""
-	config.OptionMap["SMTPPort"] = strconv.Itoa(config.SMTPPort)
-	config.OptionMap["SMTPAccount"] = ""
-	config.OptionMap["SMTPToken"] = ""
-	config.OptionMap["Notice"] = ""
-	config.OptionMap["About"] = ""
-	config.OptionMap["HomePageContent"] = ""
-	config.OptionMap["Footer"] = config.Footer
-	config.OptionMap["SystemName"] = config.SystemName
-	config.OptionMap["Logo"] = config.Logo
-	config.OptionMap["ServerAddress"] = ""
-	config.OptionMap["GitHubClientId"] = ""
-	config.OptionMap["GitHubClientSecret"] = ""
-	config.OptionMap["WeChatServerAddress"] = ""
-	config.OptionMap["WeChatServerToken"] = ""
-	config.OptionMap["WeChatAccountQRCodeImageURL"] = ""
-	config.OptionMap["MessagePusherAddress"] = ""
-	config.OptionMap["MessagePusherToken"] = ""
-	config.OptionMap["TurnstileSiteKey"] = ""
-	config.OptionMap["TurnstileSecretKey"] = ""
-	config.OptionMap["QuotaForNewUser"] = strconv.FormatInt(config.QuotaForNewUser, 10)
-	config.OptionMap["QuotaForInviter"] = strconv.FormatInt(config.QuotaForInviter, 10)
-	config.OptionMap["QuotaForInvitee"] = strconv.FormatInt(config.QuotaForInvitee, 10)
-	config.OptionMap["QuotaRemindThreshold"] = strconv.FormatInt(config.QuotaRemindThreshold, 10)
-	config.OptionMap["PreConsumedQuota"] = strconv.FormatInt(config.PreConsumedQuota, 10)
-	config.OptionMap["ModelRatio"] = ratio.ModelRatio2JSONString()
-	config.OptionMap["GroupRatio"] = ratio.GroupRatio2JSONString()
-	config.OptionMap["CompletionRatio"] = ratio.CompletionRatio2JSONString()
-	config.OptionMap["TopUpLink"] = config.TopUpLink
-	config.OptionMap["ChatLink"] = config.ChatLink
-	config.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(config.QuotaPerUnit, 'f', -1, 64)
-	config.OptionMap["RetryTimes"] = strconv.Itoa(config.RetryTimes)
-	config.OptionMap["Theme"] = config.Theme
-	config.OptionMapRWMutex.Unlock()
+	s.cfg.OptionMapRWMutex.Lock()
+	s.cfg.OptionMap = make(map[string]string)
+	s.cfg.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(s.cfg.PasswordLoginEnabled)
+	s.cfg.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(s.cfg.PasswordRegisterEnabled)
+	s.cfg.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(s.cfg.EmailVerificationEnabled)
+	s.cfg.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(s.cfg.GitHubOAuthEnabled)
+	s.cfg.OptionMap["OidcEnabled"] = strconv.FormatBool(s.cfg.OidcEnabled)
+	s.cfg.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(s.cfg.WeChatAuthEnabled)
+	s.cfg.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(s.cfg.TurnstileCheckEnabled)
+	s.cfg.OptionMap["RegisterEnabled"] = strconv.FormatBool(s.cfg.RegisterEnabled)
+	s.cfg.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(s.cfg.AutomaticDisableChannelEnabled)
+	s.cfg.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(s.cfg.AutomaticEnableChannelEnabled)
+	s.cfg.OptionMap["ApproximateTokenEnabled"] = strconv.FormatBool(s.cfg.ApproximateTokenEnabled)
+	s.cfg.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(s.cfg.LogConsumeEnabled)
+	s.cfg.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(s.cfg.DisplayInCurrencyEnabled)
+	s.cfg.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(s.cfg.DisplayTokenStatEnabled)
+	s.cfg.OptionMap["ChannelDisableThreshold"] = strconv.FormatFloat(s.cfg.ChannelDisableThreshold, 'f', -1, 64)
+	s.cfg.OptionMap["EmailDomainRestrictionEnabled"] = strconv.FormatBool(s.cfg.EmailDomainRestrictionEnabled)
+	s.cfg.OptionMap["EmailDomainWhitelist"] = strings.Join(s.cfg.EmailDomainWhitelist, ",")
+	s.cfg.OptionMap["SMTPServer"] = ""
+	s.cfg.OptionMap["SMTPFrom"] = ""
+	s.cfg.OptionMap["SMTPPort"] = strconv.Itoa(s.cfg.SMTPPort)
+	s.cfg.OptionMap["SMTPAccount"] = ""
+	s.cfg.OptionMap["SMTPToken"] = ""
+	s.cfg.OptionMap["Notice"] = ""
+	s.cfg.OptionMap["About"] = ""
+	s.cfg.OptionMap["HomePageContent"] = ""
+	s.cfg.OptionMap["Footer"] = s.cfg.Footer
+	s.cfg.OptionMap["SystemName"] = s.cfg.SystemName
+	s.cfg.OptionMap["Logo"] = s.cfg.Logo
+	s.cfg.OptionMap["ServerAddress"] = ""
+	s.cfg.OptionMap["GitHubClientId"] = ""
+	s.cfg.OptionMap["GitHubClientSecret"] = ""
+	s.cfg.OptionMap["WeChatServerAddress"] = ""
+	s.cfg.OptionMap["WeChatServerToken"] = ""
+	s.cfg.OptionMap["WeChatAccountQRCodeImageURL"] = ""
+	s.cfg.OptionMap["MessagePusherAddress"] = ""
+	s.cfg.OptionMap["MessagePusherToken"] = ""
+	s.cfg.OptionMap["TurnstileSiteKey"] = ""
+	s.cfg.OptionMap["TurnstileSecretKey"] = ""
+	s.cfg.OptionMap["QuotaForNewUser"] = strconv.FormatInt(s.cfg.QuotaForNewUser, 10)
+	s.cfg.OptionMap["QuotaForInviter"] = strconv.FormatInt(s.cfg.QuotaForInviter, 10)
+	s.cfg.OptionMap["QuotaForInvitee"] = strconv.FormatInt(s.cfg.QuotaForInvitee, 10)
+	s.cfg.OptionMap["QuotaRemindThreshold"] = strconv.FormatInt(s.cfg.QuotaRemindThreshold, 10)
+	s.cfg.OptionMap["PreConsumedQuota"] = strconv.FormatInt(s.cfg.PreConsumedQuota, 10)
+	s.cfg.OptionMap["ModelRatio"] = ratio.ModelRatio2JSONString()
+	s.cfg.OptionMap["GroupRatio"] = ratio.GroupRatio2JSONString()
+	s.cfg.OptionMap["CompletionRatio"] = ratio.CompletionRatio2JSONString()
+	s.cfg.OptionMap["TopUpLink"] = s.cfg.TopUpLink
+	s.cfg.OptionMap["ChatLink"] = s.cfg.ChatLink
+	s.cfg.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(s.cfg.QuotaPerUnit, 'f', -1, 64)
+	s.cfg.OptionMap["RetryTimes"] = strconv.Itoa(s.cfg.RetryTimes)
+	s.cfg.OptionMap["Theme"] = s.cfg.Theme
+	s.cfg.OptionMapRWMutex.Unlock()
 	s.loadOptionsFromDatabase()
 }
 
@@ -120,113 +121,113 @@ func (s *OptionService) UpdateOption(key string, value string) error {
 
 // UpdateOptionMap 更新配置选项Map
 func (s *OptionService) UpdateOptionMap(key string, value string) (err error) {
-	config.OptionMapRWMutex.Lock()
-	defer config.OptionMapRWMutex.Unlock()
+	s.cfg.OptionMapRWMutex.Lock()
+	defer s.cfg.OptionMapRWMutex.Unlock()
 
-	config.OptionMap[key] = value
+	s.cfg.OptionMap[key] = value
 	if strings.HasSuffix(key, "Enabled") {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
-			config.PasswordRegisterEnabled = boolValue
+			s.cfg.PasswordRegisterEnabled = boolValue
 		case "PasswordLoginEnabled":
-			config.PasswordLoginEnabled = boolValue
+			s.cfg.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
-			config.EmailVerificationEnabled = boolValue
+			s.cfg.EmailVerificationEnabled = boolValue
 		case "GitHubOAuthEnabled":
-			config.GitHubOAuthEnabled = boolValue
+			s.cfg.GitHubOAuthEnabled = boolValue
 		case "OidcEnabled":
-			config.OidcEnabled = boolValue
+			s.cfg.OidcEnabled = boolValue
 		case "WeChatAuthEnabled":
-			config.WeChatAuthEnabled = boolValue
+			s.cfg.WeChatAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
-			config.TurnstileCheckEnabled = boolValue
+			s.cfg.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
-			config.RegisterEnabled = boolValue
+			s.cfg.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
-			config.EmailDomainRestrictionEnabled = boolValue
+			s.cfg.EmailDomainRestrictionEnabled = boolValue
 		case "AutomaticDisableChannelEnabled":
-			config.AutomaticDisableChannelEnabled = boolValue
+			s.cfg.AutomaticDisableChannelEnabled = boolValue
 		case "AutomaticEnableChannelEnabled":
-			config.AutomaticEnableChannelEnabled = boolValue
+			s.cfg.AutomaticEnableChannelEnabled = boolValue
 		case "ApproximateTokenEnabled":
-			config.ApproximateTokenEnabled = boolValue
+			s.cfg.ApproximateTokenEnabled = boolValue
 		case "LogConsumeEnabled":
-			config.LogConsumeEnabled = boolValue
+			s.cfg.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
-			config.DisplayInCurrencyEnabled = boolValue
+			s.cfg.DisplayInCurrencyEnabled = boolValue
 		case "DisplayTokenStatEnabled":
-			config.DisplayTokenStatEnabled = boolValue
+			s.cfg.DisplayTokenStatEnabled = boolValue
 		}
 	}
 	switch key {
 	case "EmailDomainWhitelist":
-		config.EmailDomainWhitelist = strings.Split(value, ",")
+		s.cfg.EmailDomainWhitelist = strings.Split(value, ",")
 	case "SMTPServer":
-		config.SMTPServer = value
+		s.cfg.SMTPServer = value
 	case "SMTPPort":
 		intValue, _ := strconv.Atoi(value)
-		config.SMTPPort = intValue
+		s.cfg.SMTPPort = intValue
 	case "SMTPAccount":
-		config.SMTPAccount = value
+		s.cfg.SMTPAccount = value
 	case "SMTPFrom":
-		config.SMTPFrom = value
+		s.cfg.SMTPFrom = value
 	case "SMTPToken":
-		config.SMTPToken = value
+		s.cfg.SMTPToken = value
 	case "ServerAddress":
-		config.ServerAddress = value
+		s.cfg.ServerAddress = value
 	case "GitHubClientId":
-		config.GitHubClientId = value
+		s.cfg.GitHubClientId = value
 	case "GitHubClientSecret":
-		config.GitHubClientSecret = value
+		s.cfg.GitHubClientSecret = value
 	case "LarkClientId":
-		config.LarkClientId = value
+		s.cfg.LarkClientId = value
 	case "LarkClientSecret":
-		config.LarkClientSecret = value
+		s.cfg.LarkClientSecret = value
 	case "OidcClientId":
-		config.OidcClientId = value
+		s.cfg.OidcClientId = value
 	case "OidcClientSecret":
-		config.OidcClientSecret = value
+		s.cfg.OidcClientSecret = value
 	case "OidcWellKnown":
-		config.OidcWellKnown = value
+		s.cfg.OidcWellKnown = value
 	case "OidcAuthorizationEndpoint":
-		config.OidcAuthorizationEndpoint = value
+		s.cfg.OidcAuthorizationEndpoint = value
 	case "OidcTokenEndpoint":
-		config.OidcTokenEndpoint = value
+		s.cfg.OidcTokenEndpoint = value
 	case "OidcUserinfoEndpoint":
-		config.OidcUserinfoEndpoint = value
+		s.cfg.OidcUserinfoEndpoint = value
 	case "Footer":
-		config.Footer = value
+		s.cfg.Footer = value
 	case "SystemName":
-		config.SystemName = value
+		s.cfg.SystemName = value
 	case "Logo":
-		config.Logo = value
+		s.cfg.Logo = value
 	case "WeChatServerAddress":
-		config.WeChatServerAddress = value
+		s.cfg.WeChatServerAddress = value
 	case "WeChatServerToken":
-		config.WeChatServerToken = value
+		s.cfg.WeChatServerToken = value
 	case "WeChatAccountQRCodeImageURL":
-		config.WeChatAccountQRCodeImageURL = value
+		s.cfg.WeChatAccountQRCodeImageURL = value
 	case "MessagePusherAddress":
-		config.MessagePusherAddress = value
+		s.cfg.MessagePusherAddress = value
 	case "MessagePusherToken":
-		config.MessagePusherToken = value
+		s.cfg.MessagePusherToken = value
 	case "TurnstileSiteKey":
-		config.TurnstileSiteKey = value
+		s.cfg.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
-		config.TurnstileSecretKey = value
+		s.cfg.TurnstileSecretKey = value
 	case "QuotaForNewUser":
-		config.QuotaForNewUser, _ = strconv.ParseInt(value, 10, 64)
+		s.cfg.QuotaForNewUser, _ = strconv.ParseInt(value, 10, 64)
 	case "QuotaForInviter":
-		config.QuotaForInviter, _ = strconv.ParseInt(value, 10, 64)
+		s.cfg.QuotaForInviter, _ = strconv.ParseInt(value, 10, 64)
 	case "QuotaForInvitee":
-		config.QuotaForInvitee, _ = strconv.ParseInt(value, 10, 64)
+		s.cfg.QuotaForInvitee, _ = strconv.ParseInt(value, 10, 64)
 	case "QuotaRemindThreshold":
-		config.QuotaRemindThreshold, _ = strconv.ParseInt(value, 10, 64)
+		s.cfg.QuotaRemindThreshold, _ = strconv.ParseInt(value, 10, 64)
 	case "PreConsumedQuota":
-		config.PreConsumedQuota, _ = strconv.ParseInt(value, 10, 64)
+		s.cfg.PreConsumedQuota, _ = strconv.ParseInt(value, 10, 64)
 	case "RetryTimes":
-		config.RetryTimes, _ = strconv.Atoi(value)
+		s.cfg.RetryTimes, _ = strconv.Atoi(value)
 	case "ModelRatio":
 		err = ratio.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
@@ -234,15 +235,15 @@ func (s *OptionService) UpdateOptionMap(key string, value string) (err error) {
 	case "CompletionRatio":
 		err = ratio.UpdateCompletionRatioByJSONString(value)
 	case "TopUpLink":
-		config.TopUpLink = value
+		s.cfg.TopUpLink = value
 	case "ChatLink":
-		config.ChatLink = value
+		s.cfg.ChatLink = value
 	case "ChannelDisableThreshold":
-		config.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
+		s.cfg.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)
 	case "QuotaPerUnit":
-		config.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
+		s.cfg.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
 	case "Theme":
-		config.Theme = value
+		s.cfg.Theme = value
 	}
 	return err
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"log/slog"
 	"os"
@@ -15,23 +16,51 @@ import (
 	"hermes-ai/internal/infras/env"
 )
 
-var (
-	DB    *gorm.DB
-	LOGDB *gorm.DB
-)
+// InitDatabase 初始化db
+func InitDatabase() (*gorm.DB, *gorm.DB) {
+	// Initialize SQL Database
+	db, err := initDB("SQL_DSN")
+	if err != nil {
+		log.Fatalln("failed to connect to database error:", err)
+	}
 
-func chooseDB(envName string) (*gorm.DB, error) {
+	var logDB *gorm.DB
+	if os.Getenv("LOG_SQL_DSN") == "" {
+		logDB = db
+	} else {
+		logDB, err = initDB("SQL_DSN")
+		if err != nil {
+			log.Fatalln("failed to connect to log database error:", err)
+		}
+	}
+
+	return db, logDB
+}
+
+// initDB 初始化db
+func initDB(envName string) (*gorm.DB, error) {
 	dsn := os.Getenv(envName)
 
 	switch {
 	case strings.HasPrefix(dsn, "postgres://"):
 		// Use PostgreSQL
-		return openPostgreSQL(dsn)
+		db, err := openPostgreSQL(dsn)
+		if err != nil {
+			return nil, err
+		}
+
+		setDBConns(db)
+		return db, nil
 	case dsn != "":
 		// Use MySQL
-		return openMySQL(dsn)
+		db, err := openMySQL(dsn)
+		if err != nil {
+			return nil, err
+		}
+		setDBConns(db)
+		return db, nil
 	default:
-		panic("database not found in environment variables")
+		return nil, errors.New("database not found in environment variables")
 	}
 }
 
@@ -67,32 +96,6 @@ func openMySQL(dsn string) (*gorm.DB, error) {
 	return gorm.Open(mysql.Open(dsn), gormConfig)
 }
 
-func InitDB() {
-	var err error
-	DB, err = chooseDB("SQL_DSN")
-	if err != nil {
-		log.Fatalln("failed to initialize database: " + err.Error())
-		return
-	}
-}
-
-func InitLogDB() {
-	if os.Getenv("LOG_SQL_DSN") == "" {
-		LOGDB = DB
-		return
-	}
-
-	slog.Info("using secondary database for table logs")
-	var err error
-	LOGDB, err = chooseDB("LOG_SQL_DSN")
-	if err != nil {
-		log.Fatalln("failed to initialize secondary database: " + err.Error())
-		return
-	}
-
-	setDBConns(LOGDB)
-}
-
 func setDBConns(db *gorm.DB) {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -105,22 +108,16 @@ func setDBConns(db *gorm.DB) {
 	sqlDB.SetConnMaxLifetime(time.Second * time.Duration(env.Int("SQL_MAX_LIFETIME", 60)))
 }
 
-func closeDB(db *gorm.DB) error {
+// CloseDB 关闭db
+func CloseDB(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}
 	err = sqlDB.Close()
 	return err
-}
-
-func CloseDB() error {
-	if LOGDB != DB {
-		err := closeDB(LOGDB)
-		if err != nil {
-			return err
-		}
-	}
-
-	return closeDB(DB)
 }

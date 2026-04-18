@@ -4,8 +4,6 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-
-	"hermes-ai/internal/infras/config"
 )
 
 const (
@@ -22,10 +20,12 @@ type BatchUpdater struct {
 	stores []map[int]int64
 	locks  []sync.Mutex
 
-	userRepo    interface{ IncreaseUserQuota(int, int64) error }
-	tokenRepo   interface{ IncreaseQuota(int, int64) error }
-	channelRepo interface{ UpdateChannelUsedQuota(int, int64) }
-	userUpdater userUpdater
+	userRepo            interface{ IncreaseUserQuota(int, int64) error }
+	tokenRepo           interface{ IncreaseQuota(int, int64) error }
+	channelRepo         interface{ UpdateChannelUsedQuota(int, int64) }
+	userUpdater         userUpdater
+	BatchUpdateInterval time.Duration
+	BatchUpdateEnabled  bool
 }
 
 type userUpdater interface {
@@ -39,14 +39,18 @@ func NewBatchUpdater(
 	tokenRepo interface{ IncreaseQuota(int, int64) error },
 	channelRepo interface{ UpdateChannelUsedQuota(int, int64) },
 	userUpdater userUpdater,
+	batchUpdateInterval time.Duration,
+	batchUpdateEnabled bool,
 ) *BatchUpdater {
 	b := &BatchUpdater{
-		stores:      make([]map[int]int64, BatchUpdateTypeCount),
-		locks:       make([]sync.Mutex, BatchUpdateTypeCount),
-		userRepo:    userRepo,
-		tokenRepo:   tokenRepo,
-		channelRepo: channelRepo,
-		userUpdater: userUpdater,
+		stores:              make([]map[int]int64, BatchUpdateTypeCount),
+		locks:               make([]sync.Mutex, BatchUpdateTypeCount),
+		userRepo:            userRepo,
+		tokenRepo:           tokenRepo,
+		channelRepo:         channelRepo,
+		userUpdater:         userUpdater,
+		BatchUpdateEnabled:  batchUpdateEnabled,
+		BatchUpdateInterval: batchUpdateInterval,
 	}
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		b.stores[i] = make(map[int]int64)
@@ -56,13 +60,13 @@ func NewBatchUpdater(
 
 // Start 启动批量更新器
 func (b *BatchUpdater) Start() {
-	if !config.BatchUpdateEnabled {
+	if !b.BatchUpdateEnabled {
 		return
 	}
 
 	go func() {
 		for {
-			time.Sleep(time.Duration(config.BatchUpdateInterval) * time.Second)
+			time.Sleep(b.BatchUpdateInterval)
 			b.batchUpdate()
 		}
 	}()

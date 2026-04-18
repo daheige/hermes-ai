@@ -12,7 +12,6 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/persistence"
 	"hermes-ai/internal/infras/utils"
 )
@@ -27,17 +26,30 @@ type ChannelService struct {
 	group2model2channels map[string]map[string][]*entity.Channel
 	channelSyncLock      sync.RWMutex
 
-	batchUpdater *BatchUpdater
+	batchUpdater       *BatchUpdater
+	batchUpdateEnabled bool
+	syncFrequency      int
+	cacheEnabled       bool
 }
 
 // NewChannelService 创建渠道服务
-func NewChannelService(channelRepo repo.ChannelRepository, abilityRepo repo.AbilityRepository,
-	cacheRepo repo.CacheRepository, batchUpdater *BatchUpdater) *ChannelService {
+func NewChannelService(
+	channelRepo repo.ChannelRepository,
+	abilityRepo repo.AbilityRepository,
+	cacheRepo repo.CacheRepository,
+	batchUpdater *BatchUpdater,
+	batchUpdateEnabled bool,
+	syncFrequency int,
+	cacheEnabled bool,
+) *ChannelService {
 	return &ChannelService{
-		channelRepo:  channelRepo,
-		abilityRepo:  abilityRepo,
-		cacheRepo:    cacheRepo,
-		batchUpdater: batchUpdater,
+		channelRepo:        channelRepo,
+		abilityRepo:        abilityRepo,
+		cacheRepo:          cacheRepo,
+		batchUpdater:       batchUpdater,
+		batchUpdateEnabled: batchUpdateEnabled,
+		syncFrequency:      syncFrequency,
+		cacheEnabled:       cacheEnabled,
 	}
 }
 
@@ -127,7 +139,7 @@ func (s *ChannelService) UpdateChannelStatusById(id int, status int) {
 
 // UpdateChannelUsedQuota 更新渠道已用配额
 func (s *ChannelService) UpdateChannelUsedQuota(id int, quota int64) {
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.batchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeChannelUsedQuota, id, quota)
 		return
 	}
@@ -174,7 +186,7 @@ func (s *ChannelService) CacheGetGroupModels(ctx context.Context, group string) 
 		return nil, err
 	}
 	cacheErr := s.cacheRepo.Set("group_models:"+group, strings.Join(models, ","),
-		time.Duration(config.SyncFrequency)*time.Second)
+		time.Duration(s.syncFrequency)*time.Second)
 	if cacheErr != nil {
 		slog.Error("Redis set group models error: " + cacheErr.Error())
 	}
@@ -245,9 +257,10 @@ func (s *ChannelService) SyncChannelCache(frequency int) {
 
 // CacheGetRandomSatisfiedChannel 带内存缓存的随机获取满足条件的渠道
 func (s *ChannelService) CacheGetRandomSatisfiedChannel(group string, model string, ignoreFirstPriority bool) (*entity.Channel, error) {
-	if !config.MemoryCacheEnabled {
+	if !s.cacheEnabled {
 		return s.GetRandomSatisfiedChannel(group, model, ignoreFirstPriority)
 	}
+
 	s.channelSyncLock.RLock()
 	defer s.channelSyncLock.RUnlock()
 
@@ -267,7 +280,8 @@ func (s *ChannelService) CacheGetRandomSatisfiedChannel(group string, model stri
 		}
 	}
 
-	idx := rand.Intn(endIdx)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	idx := r.Intn(endIdx)
 	if ignoreFirstPriority {
 		if endIdx < len(channels) {
 			idx = utils.RandRange(endIdx, len(channels))

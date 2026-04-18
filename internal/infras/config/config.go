@@ -4,10 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/google/uuid"
 
 	"hermes-ai/internal/infras/env"
 )
@@ -22,13 +19,6 @@ var (
 	QuotaPerUnit             = 500 * 1000.0 // $0.002 / 1K tokens
 	DisplayInCurrencyEnabled = true
 	DisplayTokenStatEnabled  = true
-
-	// Any options with "Secret", "Token" in its key won't be return by GetOptions
-
-	SessionSecret = uuid.New().String()
-
-	OptionMap        map[string]string
-	OptionMapRWMutex sync.RWMutex
 
 	ItemsPerPage   = 10
 	MaxRecentItems = 100
@@ -102,8 +92,6 @@ var (
 	RetryTimes                           = 0
 
 	RootUserEmail = ""
-
-	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
 	RequestInterval    = time.Duration(requestInterval) * time.Second

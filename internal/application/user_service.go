@@ -12,7 +12,6 @@ import (
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
 	"hermes-ai/internal/infras/blacklist"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/crypto"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/utils"
@@ -25,6 +24,18 @@ type UserService struct {
 	cacheRepo    repo.CacheRepository
 	logService   *LogService
 	batchUpdater *BatchUpdater
+	UserConfig
+}
+
+type UserConfig struct {
+	SyncFrequency            int
+	QuotaForNewUser          int64
+	QuotaForInvitee          int64
+	QuotaForInviter          int64
+	QuotaPerUnit             float64
+	DisplayInCurrencyEnabled bool
+	PreConsumedQuota         int64
+	BatchUpdateEnabled       bool
 }
 
 // NewUserService 创建用户服务
@@ -34,6 +45,7 @@ func NewUserService(
 	cacheRepo repo.CacheRepository,
 	logService *LogService,
 	batchUpdater *BatchUpdater,
+	conf UserConfig,
 ) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
@@ -41,6 +53,7 @@ func NewUserService(
 		cacheRepo:    cacheRepo,
 		logService:   logService,
 		batchUpdater: batchUpdater,
+		UserConfig:   conf,
 	}
 }
 
@@ -64,7 +77,7 @@ func (s *UserService) GetUserById(id int, selectAll bool) (*entity.User, error) 
 	return s.userRepo.GetUserById(id, selectAll)
 }
 
-// GetUserById 根据ID获取用户
+// GetUserByName 根据name获取用户
 func (s *UserService) GetUserByName(username string) (*entity.User, error) {
 	return s.userRepo.GetByUsername(username)
 }
@@ -98,27 +111,28 @@ func (s *UserService) Insert(ctx context.Context, user *entity.User, inviterId i
 			return err
 		}
 	}
-	user.Quota = config.QuotaForNewUser
+	user.Quota = s.QuotaForNewUser
 	user.AccessToken = utils.UUID()
 	user.AffCode = utils.GetRandomString(4)
 	err = s.userRepo.Insert(user)
 	if err != nil {
 		return err
 	}
-	if config.QuotaForNewUser > 0 {
+	if s.QuotaForNewUser > 0 {
 		s.logService.RecordLog(ctx, user.Id, entity.LogTypeSystem,
-			fmt.Sprintf("新用户注册赠送 %s", utils.LogQuota(config.QuotaForNewUser, config.QuotaPerUnit, config.DisplayInCurrencyEnabled)))
+			fmt.Sprintf("新用户注册赠送 %s", utils.LogQuota(s.QuotaForNewUser, s.QuotaPerUnit, s.DisplayInCurrencyEnabled)))
 	}
+
 	if inviterId != 0 {
-		if config.QuotaForInvitee > 0 {
-			_ = s.IncreaseUserQuota(user.Id, config.QuotaForInvitee)
+		if s.QuotaForInvitee > 0 {
+			_ = s.IncreaseUserQuota(user.Id, s.QuotaForInvitee)
 			s.logService.RecordLog(ctx, user.Id, entity.LogTypeSystem,
-				fmt.Sprintf("使用邀请码赠送 %s", utils.LogQuota(config.QuotaForInvitee, config.QuotaPerUnit, config.DisplayInCurrencyEnabled)))
+				fmt.Sprintf("使用邀请码赠送 %s", utils.LogQuota(s.QuotaForInvitee, s.QuotaPerUnit, s.DisplayInCurrencyEnabled)))
 		}
-		if config.QuotaForInviter > 0 {
-			_ = s.IncreaseUserQuota(inviterId, config.QuotaForInviter)
+		if s.QuotaForInviter > 0 {
+			_ = s.IncreaseUserQuota(inviterId, s.QuotaForInviter)
 			s.logService.RecordLog(ctx, inviterId, entity.LogTypeSystem,
-				fmt.Sprintf("邀请用户赠送 %s", utils.LogQuota(config.QuotaForInviter, config.QuotaPerUnit, config.DisplayInCurrencyEnabled)))
+				fmt.Sprintf("邀请用户赠送 %s", utils.LogQuota(s.QuotaForInviter, s.QuotaPerUnit, s.DisplayInCurrencyEnabled)))
 		}
 	}
 	// 创建默认令牌
@@ -276,7 +290,7 @@ func (s *UserService) CacheIsUserEnabled(userId int) (bool, error) {
 	}
 
 	cacheErr := s.cacheRepo.Set(fmt.Sprintf("user_enabled:%d", userId), enabledStr,
-		time.Duration(config.SyncFrequency)*time.Second)
+		time.Duration(s.SyncFrequency)*time.Second)
 	if cacheErr != nil {
 		slog.Error("Redis set user enabled error: " + cacheErr.Error())
 	}
@@ -326,7 +340,7 @@ func (s *UserService) CacheGetUserGroup(id int) (string, error) {
 			return "", err
 		}
 		cacheErr := s.cacheRepo.Set(fmt.Sprintf("user_group:%d", id), group,
-			time.Duration(config.SyncFrequency)*time.Second)
+			time.Duration(s.SyncFrequency)*time.Second)
 		if cacheErr != nil {
 			slog.Error("Redis set user group error: " + cacheErr.Error())
 		}
@@ -348,7 +362,7 @@ func (s *UserService) CacheGetUserQuota(ctx context.Context, id int) (int64, err
 	if err != nil {
 		return 0, nil
 	}
-	if quota <= config.PreConsumedQuota {
+	if quota <= s.PreConsumedQuota {
 		slog.With("request_id", logger.GetRequestID(ctx)).Info("user %d's cached quota is too low: %d, refreshing from db", quota, id)
 		return s.fetchAndUpdateUserQuota(ctx, id)
 	}
@@ -361,7 +375,7 @@ func (s *UserService) fetchAndUpdateUserQuota(ctx context.Context, id int) (int6
 		return 0, err
 	}
 	cacheErr := s.cacheRepo.Set(fmt.Sprintf("user_quota:%d", id), fmt.Sprintf("%d", quota),
-		time.Duration(config.SyncFrequency)*time.Second)
+		time.Duration(s.SyncFrequency)*time.Second)
 	if cacheErr != nil {
 		slog.With("request_id", logger.GetRequestID(ctx)).Error("Redis set user quota error: " + cacheErr.Error())
 	}
@@ -378,7 +392,7 @@ func (s *UserService) CacheUpdateUserQuota(ctx context.Context, id int) error {
 		return err
 	}
 	return s.cacheRepo.Set(fmt.Sprintf("user_quota:%d", id), fmt.Sprintf("%d", quota),
-		time.Duration(config.SyncFrequency)*time.Second)
+		time.Duration(s.SyncFrequency)*time.Second)
 }
 
 // CacheDecreaseUserQuota 减少用户配额缓存
@@ -404,7 +418,7 @@ func (s *UserService) IncreaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, quota)
 		return nil
 	}
@@ -417,7 +431,7 @@ func (s *UserService) DecreaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
@@ -427,7 +441,7 @@ func (s *UserService) DecreaseUserQuota(id int, quota int64) error {
 
 // UpdateUserUsedQuotaAndRequestCount 更新用户已用配额和请求计数
 func (s *UserService) UpdateUserUsedQuotaAndRequestCount(id int, quota int64) {
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeUsedQuota, id, quota)
 		s.batchUpdater.AddRecord(BatchUpdateTypeRequestCount, id, 1)
 		return

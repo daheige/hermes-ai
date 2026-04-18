@@ -19,7 +19,7 @@ type AuthHandler struct {
 
 // NewAuthHandler 创建认证处理器
 func NewAuthHandler(service *application.UserService, conf AuthConfig) *AuthHandler {
-	return &AuthHandler{service: service}
+	return &AuthHandler{service: service, AuthConfig: conf}
 }
 
 // LoginRequest 登录请求

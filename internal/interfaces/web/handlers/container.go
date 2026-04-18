@@ -3,8 +3,8 @@ package handlers
 import (
 	"time"
 
-	"hermes-ai/internal/application"
 	monitor2 "hermes-ai/internal/infras/monitor"
+	"hermes-ai/internal/providers"
 )
 
 // HandlerContainers 处理器容器，集中管理所有handler实例
@@ -58,7 +58,7 @@ type HandlerParams struct {
 
 // NewHandlerContainer 创建处理器容器
 func NewHandlerContainer(
-	services *application.Services,
+	services *providers.Services,
 	channelMonitor *monitor2.ChannelMonitor,
 	p *HandlerParams,
 ) *HandlerContainers {

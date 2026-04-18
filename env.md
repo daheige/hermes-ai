@@ -53,14 +53,14 @@
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `REDIS_CONN_STRING` | string | - | Redis 连接字符串，为空则禁用 Redis |
-| `REDIS_MASTER_NAME` | string | - | Redis 集群主节点名称，设置后启用集群模式 |
+| `REDIS_ENABLE_CLUSTER` | bool | `false` | 是否启用 Redis 集群模式 |
 | `REDIS_PASSWORD` | string | - | Redis 密码（集群模式使用） |
+| `REDIS_USERNAME` | string | - | Redis 用户名（集群模式使用） |
 | `SYNC_FREQUENCY` | int | `600` | 数据同步频率（秒） |
 
 **连接字符串格式：**
-```
-redis://[:password@]host:port/db[?options]
-```
+- 单机模式：`redis://[:password@]host:port/db[?options]`
+- 集群模式：传入多个地址，用逗号分隔，如 `redis://host1:6379,redis://host2:6379`
 
 示例：
 ```
@@ -76,11 +76,10 @@ redis://:@localhost:6379/0?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
 | `LOG_LEVEL` | string | `info` | 日志级别，可选：`debug`、`info`、`warn`、`error` |
 | `LOG_DIR` | string | - | 日志输出目录，为空则输出到标准输出 |
 
-### 会话与安全
+### 安全与认证
 
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `SESSION_SECRET` | string | 随机 UUID | 会话密钥，建议设置为随机字符串 |
 | `INITIAL_ROOT_TOKEN` | string | - | 初始化 Root 用户 Token |
 | `INITIAL_ROOT_ACCESS_TOKEN` | string | - | 初始化 Root 用户 Access Token |
 
@@ -209,8 +208,9 @@ SQL_MAX_OPEN_CONNS=1000
 
 # Redis 集群
 REDIS_CONN_STRING=redis://:password@redis1:6379,redis://:password@redis2:6379
-REDIS_MASTER_NAME=mymaster
+REDIS_ENABLE_CLUSTER=true
 REDIS_PASSWORD=password
+REDIS_USERNAME=default
 SYNC_FREQUENCY=60
 
 # 日志
@@ -221,9 +221,6 @@ LOG_DIR=./logs
 MEMORY_CACHE_ENABLED=true
 BATCH_UPDATE_ENABLED=true
 BATCH_UPDATE_INTERVAL=10
-
-# 安全
-SESSION_SECRET=your_random_secret_string_here
 
 # 监控
 ENABLE_METRIC=true

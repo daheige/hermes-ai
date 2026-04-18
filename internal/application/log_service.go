@@ -6,7 +6,6 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/utils"
@@ -14,13 +13,15 @@ import (
 
 // LogService 日志服务
 type LogService struct {
-	logRepo  repo.LogRepository
-	userRepo repo.UserRepository
+	logRepo          repo.LogRepository
+	userRepo         repo.UserRepository
+	logConsumeEnabled bool
+	maxRecentItems   int
 }
 
 // NewLogService 创建日志服务
-func NewLogService(logRepo repo.LogRepository, userRepo repo.UserRepository) *LogService {
-	return &LogService{logRepo: logRepo, userRepo: userRepo}
+func NewLogService(logRepo repo.LogRepository, userRepo repo.UserRepository, logConsumeEnabled bool, maxRecentItems int) *LogService {
+	return &LogService{logRepo: logRepo, userRepo: userRepo, logConsumeEnabled: logConsumeEnabled, maxRecentItems: maxRecentItems}
 }
 
 func (s *LogService) getRequestID(ctx context.Context) string {
@@ -44,7 +45,7 @@ func (s *LogService) recordLogHelper(ctx context.Context, log *entity.Log) {
 
 // RecordLog 记录日志
 func (s *LogService) RecordLog(ctx context.Context, userId int, logType int, content string) {
-	if logType == entity.LogTypeConsume && !config.LogConsumeEnabled {
+	if logType == entity.LogTypeConsume && !s.logConsumeEnabled {
 		return
 	}
 	log := &entity.Log{
@@ -72,7 +73,7 @@ func (s *LogService) RecordTopupLog(ctx context.Context, userId int, content str
 
 // RecordConsumeLog 记录消费日志
 func (s *LogService) RecordConsumeLog(ctx context.Context, log *entity.Log) {
-	if !config.LogConsumeEnabled {
+	if !s.logConsumeEnabled {
 		return
 	}
 
@@ -122,12 +123,12 @@ func (s *LogService) GetUserLogs(userId int, logType int, startTimestamp int64, 
 
 // SearchAllLogs 搜索所有日志
 func (s *LogService) SearchAllLogs(keyword string) ([]*entity.Log, error) {
-	return s.logRepo.SearchAllLogs(keyword, config.MaxRecentItems)
+	return s.logRepo.SearchAllLogs(keyword, s.maxRecentItems)
 }
 
 // SearchUserLogs 搜索用户日志
 func (s *LogService) SearchUserLogs(userId int, keyword string) ([]*entity.Log, error) {
-	return s.logRepo.SearchUserLogs(userId, keyword, config.MaxRecentItems)
+	return s.logRepo.SearchUserLogs(userId, keyword, s.maxRecentItems)
 }
 
 // SumUsedQuota 统计已用配额

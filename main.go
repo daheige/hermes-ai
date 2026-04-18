@@ -16,29 +16,29 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/joho/godotenv/autoload"
+	"gorm.io/gorm"
 
-	"hermes-ai/internal/application"
+	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/infras/config"
+	"hermes-ai/internal/infras/crypto"
 	"hermes-ai/internal/infras/env"
 	"hermes-ai/internal/infras/httpclient"
 	"hermes-ai/internal/infras/i18n"
 	"hermes-ai/internal/infras/logger"
 	monitor2 "hermes-ai/internal/infras/monitor"
-	"hermes-ai/internal/infras/rds"
 	"hermes-ai/internal/infras/relay/adaptor/openai"
 	relayServices "hermes-ai/internal/infras/relay/services"
+	"hermes-ai/internal/infras/utils"
 	"hermes-ai/internal/interfaces/web/handlers"
 	"hermes-ai/internal/interfaces/web/middleware"
 	"hermes-ai/internal/interfaces/web/router"
-	"hermes-ai/internal/providers/web"
+	"hermes-ai/internal/providers"
 )
 
 //go:embed web/build/*
 var buildFS embed.FS
 
 func main() {
-	web.Init()
-
 	// 初始化日志
 	opts := []logger.Option{
 		logger.WithAddSource(true),
@@ -60,48 +60,52 @@ func main() {
 	}
 
 	// Initialize SQL Database
-	config.InitDB()
-	config.InitLogDB()
-
-	var err error
-	err = web.CreateRootAccountIfNeed()
-	if err != nil {
-		log.Fatalln("database init error: " + err.Error())
-	}
+	db, logDB := config.InitDatabase()
 	defer func() {
-		err := config.CloseDB()
+		err := config.CloseDB(db)
 		if err != nil {
 			log.Fatalln("failed to close database: " + err.Error())
 		}
+
+		if os.Getenv("LOG_SQL_DSN") != "" {
+			err := config.CloseDB(logDB)
+			if err != nil {
+				log.Fatalln("failed to close database: " + err.Error())
+			}
+		}
 	}()
 
+	err := CreateRootAccountIfNeed(db)
+	if err != nil {
+		log.Fatalln("database init error: " + err.Error())
+	}
+
 	// Initialize Redis
-	err = rds.InitRedisClient()
+	redisClient, err := config.InitRedisClient()
 	if err != nil {
 		log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
 
+	// Initialize application config
+	cfg := initAppConfig()
+	cfg.CacheEnabled = true // 使用redis cache
+
+	// init repos
+	repos := providers.InitRepositories(db, logDB, redisClient)
 	// Initialize application services
-	services := application.InitServices()
+	services := providers.InitServices(repos, cfg)
 
 	// Initialize options
 	services.OptionService.InitOptionMap()
-	slog.Info(fmt.Sprintf("using theme %s", config.Theme))
-	if rds.RedisEnabled {
-		// for compatibility with old versions
-		config.MemoryCacheEnabled = true
-	}
-
-	if config.MemoryCacheEnabled {
-		slog.Info("memory cache enabled")
-		slog.Info(fmt.Sprintf("sync frequency: %d seconds", config.SyncFrequency))
-		services.ChannelService.InitChannelCache()
-	}
+	slog.Info(fmt.Sprintf("using theme %s", cfg.Theme))
 
 	// 内存缓存对于redis也是
-	if config.MemoryCacheEnabled {
-		go services.OptionService.SyncOptions(config.SyncFrequency)
-		go services.ChannelService.SyncChannelCache(config.SyncFrequency)
+	if cfg.CacheEnabled {
+		slog.Info("memory cache enabled")
+		slog.Info(fmt.Sprintf("sync frequency: %d seconds", cfg.SyncFrequency))
+		services.ChannelService.InitChannelCache()
+		go services.OptionService.SyncOptions(cfg.SyncFrequency)
+		go services.ChannelService.SyncChannelCache(cfg.SyncFrequency)
 	}
 
 	if os.Getenv("CHANNEL_TEST_FREQUENCY") != "" {
@@ -114,8 +118,8 @@ func main() {
 
 	// 启动批量更新器
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
-		config.BatchUpdateEnabled = true
-		slog.Info("batch update enabled with interval " + strconv.Itoa(config.BatchUpdateInterval) + "s")
+		cfg.BatchUpdateEnabled = true
+		slog.Info("batch update enabled with interval " + strconv.Itoa(cfg.BatchUpdateInterval) + "s")
 		services.BatchUpdater.Start()
 	}
 
@@ -152,7 +156,7 @@ func main() {
 	handlerContainer := handlers.NewHandlerContainer(
 		services,
 		channelMonitor,
-		initHandlerParams(),
+		initHandlerParams(cfg),
 	)
 
 	// init relay services
@@ -172,13 +176,14 @@ func main() {
 		UploadRateLimitDuration:        config.UploadRateLimitDuration,
 		RateLimitKeyExpirationDuration: config.RateLimitKeyExpirationDuration,
 		DebugEnabled:                   config.DebugEnabled,
+		RedisEnabled:                   true, // 使用redis cache
 	}
 	middlewares := middleware.NewMiddlewares(
-		services, rds.RDB, rateLimitConf, config.TurnstileCheckEnabled, config.TurnstileSecretKey,
+		services, redisClient, rateLimitConf, config.TurnstileCheckEnabled, config.TurnstileSecretKey,
 	)
 
 	// Create router with handlers
-	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, config.Theme)
+	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, cfg.Theme)
 	var port = env.Int("PORT", 1337)
 	log.Printf("server started on http://localhost:%d", port)
 
@@ -254,86 +259,226 @@ func shutdown(server *http.Server, gracefulWait time.Duration) {
 	}
 }
 
-func initHandlerParams() *handlers.HandlerParams {
-	handlerParams := &handlers.HandlerParams{
-		LarkUserConfig: handlers.LarkUserConfig{
-			LarkClientId:     config.LarkClientId,
-			LarkClientSecret: config.LarkClientSecret,
-			ServerAddress:    config.ServerAddress,
-			RegisterEnabled:  config.RegisterEnabled,
-		},
-		GithubUserConfig: handlers.GitHubUserConfig{
-			GitHubClientId:     config.GitHubClientId,
-			GitHubClientSecret: config.GitHubClientSecret,
-			GitHubOAuthEnabled: config.GitHubOAuthEnabled,
-			RegisterEnabled:    config.RegisterEnabled,
-		},
-		AuthConfig: handlers.AuthConfig{
-			PasswordLoginEnabled:     config.PasswordLoginEnabled,
-			PasswordRegisterEnabled:  config.PasswordRegisterEnabled,
-			RegisterEnabled:          config.RegisterEnabled,
-			EmailVerificationEnabled: config.EmailVerificationEnabled,
-		},
-		WeChatUserConfig: handlers.WeChatUserConfig{
-			WeChatServerAddress: config.WeChatServerAddress,
-			WeChatServerToken:   config.WeChatServerToken,
-			WeChatAuthEnabled:   config.WeChatAuthEnabled,
-			RegisterEnabled:     config.RegisterEnabled,
-		},
-		OidcUserConfig: handlers.OidcUserConfig{
-			OidcClientId:         config.OidcClientId,
-			OidcClientSecret:     config.OidcClientSecret,
-			ServerAddress:        config.ServerAddress,
-			OidcTokenEndpoint:    config.OidcTokenEndpoint,
-			OidcUserinfoEndpoint: config.OidcUserinfoEndpoint,
-			OidcEnabled:          config.OidcEnabled,
-			RegisterEnabled:      config.RegisterEnabled,
-		},
-		MiscConfig: handlers.MiscConfig{
-			EmailVerificationEnabled:      config.EmailVerificationEnabled,
-			GitHubOAuthEnabled:            config.GitHubOAuthEnabled,
-			GitHubClientId:                config.GitHubClientId,
-			LarkClientId:                  config.LarkClientId,
-			SystemName:                    config.SystemName,
-			Logo:                          config.Logo,
-			Footer:                        config.Footer,
-			WeChatAccountQRCodeImageURL:   config.WeChatAccountQRCodeImageURL,
-			WeChatAuthEnabled:             config.WeChatAuthEnabled,
-			ServerAddress:                 config.ServerAddress,
-			TurnstileCheckEnabled:         config.TurnstileCheckEnabled,
-			TurnstileSiteKey:              config.TurnstileSiteKey,
-			TopUpLink:                     config.TopUpLink,
-			ChatLink:                      config.ChatLink,
-			QuotaPerUnit:                  config.QuotaPerUnit,
-			DisplayInCurrencyEnabled:      config.DisplayInCurrencyEnabled,
-			OidcEnabled:                   config.OidcEnabled,
-			OidcClientId:                  config.OidcClientId,
-			OidcWellKnown:                 config.OidcWellKnown,
-			OidcAuthorizationEndpoint:     config.OidcAuthorizationEndpoint,
-			OidcTokenEndpoint:             config.OidcTokenEndpoint,
-			OidcUserinfoEndpoint:          config.OidcUserinfoEndpoint,
-			EmailDomainRestrictionEnabled: config.EmailDomainRestrictionEnabled,
-			EmailDomainWhitelist:          config.EmailDomainWhitelist,
-			OptionMap:                     config.OptionMap,
-		},
-		ItemsPerPage:                   config.ItemsPerPage,
+func initAppConfig() *config.AppConfig {
+	return &config.AppConfig{
+		SystemName:                     config.SystemName,
+		ServerAddress:                  config.ServerAddress,
+		Footer:                         config.Footer,
+		Logo:                           config.Logo,
+		TopUpLink:                      config.TopUpLink,
+		ChatLink:                       config.ChatLink,
 		QuotaPerUnit:                   config.QuotaPerUnit,
 		DisplayInCurrencyEnabled:       config.DisplayInCurrencyEnabled,
-		RootUserEmail:                  &config.RootUserEmail,
-		TestPrompt:                     config.TestPrompt,
+		DisplayTokenStatEnabled:        config.DisplayTokenStatEnabled,
+		ItemsPerPage:                   config.ItemsPerPage,
+		MaxRecentItems:                 config.MaxRecentItems,
+		PasswordLoginEnabled:           config.PasswordLoginEnabled,
+		PasswordRegisterEnabled:        config.PasswordRegisterEnabled,
+		EmailVerificationEnabled:       config.EmailVerificationEnabled,
+		GitHubOAuthEnabled:             config.GitHubOAuthEnabled,
+		OidcEnabled:                    config.OidcEnabled,
+		WeChatAuthEnabled:              config.WeChatAuthEnabled,
+		TurnstileCheckEnabled:          config.TurnstileCheckEnabled,
+		RegisterEnabled:                config.RegisterEnabled,
+		EmailDomainRestrictionEnabled:  config.EmailDomainRestrictionEnabled,
+		EmailDomainWhitelist:           config.EmailDomainWhitelist,
+		DebugEnabled:                   config.DebugEnabled,
+		DebugSQLEnabled:                config.DebugSQLEnabled,
+		CacheEnabled:                   config.MemoryCacheEnabled,
+		LogConsumeEnabled:              config.LogConsumeEnabled,
+		SMTPServer:                     config.SMTPServer,
+		SMTPPort:                       config.SMTPPort,
+		SMTPAccount:                    config.SMTPAccount,
+		SMTPFrom:                       config.SMTPFrom,
+		SMTPToken:                      config.SMTPToken,
+		GitHubClientId:                 config.GitHubClientId,
+		GitHubClientSecret:             config.GitHubClientSecret,
+		LarkClientId:                   config.LarkClientId,
+		LarkClientSecret:               config.LarkClientSecret,
+		OidcClientId:                   config.OidcClientId,
+		OidcClientSecret:               config.OidcClientSecret,
+		OidcWellKnown:                  config.OidcWellKnown,
+		OidcAuthorizationEndpoint:      config.OidcAuthorizationEndpoint,
+		OidcTokenEndpoint:              config.OidcTokenEndpoint,
+		OidcUserinfoEndpoint:           config.OidcUserinfoEndpoint,
+		WeChatServerAddress:            config.WeChatServerAddress,
+		WeChatServerToken:              config.WeChatServerToken,
+		WeChatAccountQRCodeImageURL:    config.WeChatAccountQRCodeImageURL,
+		MessagePusherAddress:           config.MessagePusherAddress,
+		MessagePusherToken:             config.MessagePusherToken,
+		TurnstileSiteKey:               config.TurnstileSiteKey,
+		TurnstileSecretKey:             config.TurnstileSecretKey,
+		QuotaForNewUser:                config.QuotaForNewUser,
+		QuotaForInviter:                config.QuotaForInviter,
+		QuotaForInvitee:                config.QuotaForInvitee,
 		ChannelDisableThreshold:        config.ChannelDisableThreshold,
 		AutomaticDisableChannelEnabled: config.AutomaticDisableChannelEnabled,
-		RequestInterval:                config.RequestInterval,
-		DisplayTokenStatEnabled:        config.DisplayTokenStatEnabled,
-		DebugEnabled:                   config.DebugEnabled,
+		AutomaticEnableChannelEnabled:  config.AutomaticEnableChannelEnabled,
+		QuotaRemindThreshold:           config.QuotaRemindThreshold,
+		PreConsumedQuota:               config.PreConsumedQuota,
+		ApproximateTokenEnabled:        config.ApproximateTokenEnabled,
 		RetryTimes:                     config.RetryTimes,
-		OptionMap:                      config.OptionMap,
+		RootUserEmail:                  config.RootUserEmail,
+		RequestInterval:                config.RequestInterval,
+		SyncFrequency:                  config.SyncFrequency,
+		BatchUpdateEnabled:             config.BatchUpdateEnabled,
+		BatchUpdateInterval:            config.BatchUpdateInterval,
+		Theme:                          config.Theme,
 		ValidThemes:                    config.ValidThemes,
-		GithubClientId:                 config.GitHubClientId,
-		EmailDomainWhitelist:           config.EmailDomainWhitelist,
-		WeChatServerAddress:            config.WeChatServerAddress,
-		TurnstileSiteKey:               config.TurnstileSiteKey,
+		GlobalWebRateLimitNum:          config.GlobalWebRateLimitNum,
+		GlobalWebRateLimitDuration:     config.GlobalWebRateLimitDuration,
+		GlobalApiRateLimitNum:          config.GlobalApiRateLimitNum,
+		GlobalApiRateLimitDuration:     config.GlobalApiRateLimitDuration,
+		CriticalRateLimitNum:           config.CriticalRateLimitNum,
+		CriticalRateLimitDuration:      config.CriticalRateLimitDuration,
+		DownloadRateLimitNum:           config.DownloadRateLimitNum,
+		DownloadRateLimitDuration:      config.DownloadRateLimitDuration,
+		UploadRateLimitNum:             config.UploadRateLimitNum,
+		UploadRateLimitDuration:        config.UploadRateLimitDuration,
+		RateLimitKeyExpirationDuration: config.RateLimitKeyExpirationDuration,
+		EnableMetric:                   config.EnableMetric,
+		MetricQueueSize:                config.MetricQueueSize,
+		MetricSuccessRateThreshold:     config.MetricSuccessRateThreshold,
+		MetricSuccessChanSize:          config.MetricSuccessChanSize,
+		MetricFailChanSize:             config.MetricFailChanSize,
+		RelayTimeout:                   config.RelayTimeout,
+		UserContentRequestProxy:        config.UserContentRequestProxy,
+		UserContentRequestTimeout:      config.UserContentRequestTimeout,
+		RelayProxy:                     config.RelayProxy,
+		EnforceIncludeUsage:            config.EnforceIncludeUsage,
+		TestPrompt:                     config.TestPrompt,
+		InitialRootToken:               config.InitialRootToken,
+		InitialRootAccessToken:         config.InitialRootAccessToken,
+		GeminiVersion:                  config.GeminiVersion,
+		GeminiSafetySetting:            config.GeminiSafetySetting,
+	}
+}
+
+func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
+	handlerParams := &handlers.HandlerParams{
+		LarkUserConfig: handlers.LarkUserConfig{
+			LarkClientId:     cfg.LarkClientId,
+			LarkClientSecret: cfg.LarkClientSecret,
+			ServerAddress:    cfg.ServerAddress,
+			RegisterEnabled:  cfg.RegisterEnabled,
+		},
+		GithubUserConfig: handlers.GitHubUserConfig{
+			GitHubClientId:     cfg.GitHubClientId,
+			GitHubClientSecret: cfg.GitHubClientSecret,
+			GitHubOAuthEnabled: cfg.GitHubOAuthEnabled,
+			RegisterEnabled:    cfg.RegisterEnabled,
+		},
+		AuthConfig: handlers.AuthConfig{
+			PasswordLoginEnabled:     cfg.PasswordLoginEnabled,
+			PasswordRegisterEnabled:  cfg.PasswordRegisterEnabled,
+			RegisterEnabled:          cfg.RegisterEnabled,
+			EmailVerificationEnabled: cfg.EmailVerificationEnabled,
+		},
+		WeChatUserConfig: handlers.WeChatUserConfig{
+			WeChatServerAddress: cfg.WeChatServerAddress,
+			WeChatServerToken:   cfg.WeChatServerToken,
+			WeChatAuthEnabled:   cfg.WeChatAuthEnabled,
+			RegisterEnabled:     cfg.RegisterEnabled,
+		},
+		OidcUserConfig: handlers.OidcUserConfig{
+			OidcClientId:         cfg.OidcClientId,
+			OidcClientSecret:     cfg.OidcClientSecret,
+			ServerAddress:        cfg.ServerAddress,
+			OidcTokenEndpoint:    cfg.OidcTokenEndpoint,
+			OidcUserinfoEndpoint: cfg.OidcUserinfoEndpoint,
+			OidcEnabled:          cfg.OidcEnabled,
+			RegisterEnabled:      cfg.RegisterEnabled,
+		},
+		MiscConfig: handlers.MiscConfig{
+			EmailVerificationEnabled:      cfg.EmailVerificationEnabled,
+			GitHubOAuthEnabled:            cfg.GitHubOAuthEnabled,
+			GitHubClientId:                cfg.GitHubClientId,
+			LarkClientId:                  cfg.LarkClientId,
+			SystemName:                    cfg.SystemName,
+			Logo:                          cfg.Logo,
+			Footer:                        cfg.Footer,
+			WeChatAccountQRCodeImageURL:   cfg.WeChatAccountQRCodeImageURL,
+			WeChatAuthEnabled:             cfg.WeChatAuthEnabled,
+			ServerAddress:                 cfg.ServerAddress,
+			TurnstileCheckEnabled:         cfg.TurnstileCheckEnabled,
+			TurnstileSiteKey:              cfg.TurnstileSiteKey,
+			TopUpLink:                     cfg.TopUpLink,
+			ChatLink:                      cfg.ChatLink,
+			QuotaPerUnit:                  cfg.QuotaPerUnit,
+			DisplayInCurrencyEnabled:      cfg.DisplayInCurrencyEnabled,
+			OidcEnabled:                   cfg.OidcEnabled,
+			OidcClientId:                  cfg.OidcClientId,
+			OidcWellKnown:                 cfg.OidcWellKnown,
+			OidcAuthorizationEndpoint:     cfg.OidcAuthorizationEndpoint,
+			OidcTokenEndpoint:             cfg.OidcTokenEndpoint,
+			OidcUserinfoEndpoint:          cfg.OidcUserinfoEndpoint,
+			EmailDomainRestrictionEnabled: cfg.EmailDomainRestrictionEnabled,
+			EmailDomainWhitelist:          cfg.EmailDomainWhitelist,
+			OptionMap:                     cfg.OptionMap,
+		},
+		ItemsPerPage:                   cfg.ItemsPerPage,
+		QuotaPerUnit:                   cfg.QuotaPerUnit,
+		DisplayInCurrencyEnabled:       cfg.DisplayInCurrencyEnabled,
+		RootUserEmail:                  &cfg.RootUserEmail,
+		TestPrompt:                     cfg.TestPrompt,
+		ChannelDisableThreshold:        cfg.ChannelDisableThreshold,
+		AutomaticDisableChannelEnabled: cfg.AutomaticDisableChannelEnabled,
+		RequestInterval:                cfg.RequestInterval,
+		DisplayTokenStatEnabled:        cfg.DisplayTokenStatEnabled,
+		DebugEnabled:                   cfg.DebugEnabled,
+		RetryTimes:                     cfg.RetryTimes,
+		OptionMap:                      cfg.OptionMap,
+		ValidThemes:                    cfg.ValidThemes,
+		GithubClientId:                 cfg.GitHubClientId,
+		EmailDomainWhitelist:           cfg.EmailDomainWhitelist,
+		WeChatServerAddress:            cfg.WeChatServerAddress,
+		TurnstileSiteKey:               cfg.TurnstileSiteKey,
 	}
 
 	return handlerParams
+}
+
+func CreateRootAccountIfNeed(db *gorm.DB) error {
+	var user entity.User
+	// if user.Status != util.UserStatusEnabled {
+	if err := db.First(&user).Error; err != nil {
+		slog.Info("no user exists, creating a root user for you: username is root, password is 123456")
+		hashedPassword, err := crypto.Password2Hash("123456")
+		if err != nil {
+			return err
+		}
+
+		accessToken := utils.UUID()
+		if config.InitialRootAccessToken != "" {
+			accessToken = config.InitialRootAccessToken
+		}
+		rootUser := entity.User{
+			Username:    "root",
+			Password:    hashedPassword,
+			Role:        entity.RoleRootUser,
+			Status:      entity.UserStatusEnabled,
+			DisplayName: "Root User",
+			AccessToken: accessToken,
+			Quota:       500000000000000,
+		}
+		db.Create(&rootUser)
+		if config.InitialRootToken != "" {
+			slog.Info("creating initial root token as requested")
+			token := entity.Token{
+				Id:             1,
+				UserId:         rootUser.Id,
+				Key:            config.InitialRootToken,
+				Status:         entity.TokenStatusEnabled,
+				Name:           "Initial Root Token",
+				CreatedTime:    utils.GetTimestamp(),
+				AccessedTime:   utils.GetTimestamp(),
+				ExpiredTime:    -1,
+				RemainQuota:    500000000000000,
+				UnlimitedQuota: true,
+			}
+			db.Create(&token)
+		}
+	}
+
+	return nil
 }

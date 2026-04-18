@@ -6,21 +6,29 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/utils"
 )
 
 // RedemptionService 兑换码服务
 type RedemptionService struct {
-	redemptionRepo repo.RedemptionRepository
-	logService     *LogService
+	redemptionRepo           repo.RedemptionRepository
+	logService               *LogService
+	quotaPerUnit             float64
+	displayInCurrencyEnabled bool
 }
 
 // NewRedemptionService 创建兑换码服务
-func NewRedemptionService(redemptionRepo repo.RedemptionRepository, logService *LogService) *RedemptionService {
+func NewRedemptionService(
+	redemptionRepo repo.RedemptionRepository,
+	logService *LogService,
+	quotaPerUnit float64,
+	displayInCurrencyEnabled bool,
+) *RedemptionService {
 	return &RedemptionService{
-		redemptionRepo: redemptionRepo,
-		logService:     logService,
+		redemptionRepo:           redemptionRepo,
+		logService:               logService,
+		quotaPerUnit:             quotaPerUnit,
+		displayInCurrencyEnabled: displayInCurrencyEnabled,
 	}
 }
 
@@ -46,7 +54,7 @@ func (s *RedemptionService) Redeem(ctx context.Context, key string, userId int) 
 		return 0, err
 	}
 	s.logService.RecordLog(ctx, userId, entity.LogTypeTopup,
-		fmt.Sprintf("通过兑换码充值 %s", utils.LogQuota(redemption.Quota, config.QuotaPerUnit, config.DisplayInCurrencyEnabled)))
+		fmt.Sprintf("通过兑换码充值 %s", utils.LogQuota(redemption.Quota, s.quotaPerUnit, s.displayInCurrencyEnabled)))
 	return redemption.Quota, nil
 }
 

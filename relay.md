@@ -17,6 +17,8 @@
 11. [微调操作（未实现）](#微调操作未实现)
 12. [助手操作（未实现）](#助手操作未实现)
 13. [线程操作（未实现）](#线程操作未实现)
+14. [错误响应格式](#错误响应格式)
+15. [流式响应（SSE）](#流式响应sse)
 
 ---
 
@@ -29,6 +31,17 @@ Authorization: Bearer {your-api-key}
 ```
 
 API Key 可以通过管理后台的令牌管理功能创建。
+
+---
+
+## 重试机制
+
+当上游渠道返回错误时，系统会根据错误类型自动进行重试（在配置的重试次数范围内）：
+
+- **会自动重试的错误**：HTTP 429（限流）、HTTP 5xx（服务器错误）、其他非 2xx/400 错误
+- **不会重试的错误**：HTTP 400（请求参数错误）、HTTP 2xx（成功响应）
+
+重试时会自动切换到同一分组下的其他可用渠道，避免重复请求已失败的渠道。
 
 ---
 
@@ -677,7 +690,7 @@ POST /v1/messages
 | Authorization | 是 | Bearer Token |
 | Content-Type | 是 | application/json |
 | anthropic-version | 否 | Anthropic API 版本，默认 `2023-06-01` |
-| anthropic-beta | 否 | Beta 功能标识，系统会自动设置必要的 beta 头 |
+| anthropic-beta | 否 | Beta 功能标识，系统会自动设置。默认使用 `messages-2023-12-15`；当请求 `claude-3-5-sonnet` 系列模型时，会自动切换为 `max-tokens-3-5-sonnet-2024-07-15` |
 
 **请求体**:
 
@@ -1000,6 +1013,20 @@ GET /v1/threads/{id}/runs/{runsId}/steps
 | authentication_error | 认证失败 |
 | rate_limit_error | 请求频率限制 |
 | api_not_implemented | 接口未实现 |
+
+### 429 上游限流
+
+当上游渠道返回 HTTP 429（Too Many Requests）时，系统会自动进行重试（在配置的重试次数范围内）。如果所有重试均失败，最终返回的错误消息会被替换为：
+
+```json
+{
+  "error": {
+    "message": "当前分组上游负载已饱和，请稍后再试",
+    "type": "upstream_error",
+    "code": "rate_limit"
+  }
+}
+```
 
 ---
 

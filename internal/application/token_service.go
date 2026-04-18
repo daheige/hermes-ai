@@ -9,7 +9,6 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/config"
 	message2 "hermes-ai/internal/infras/message"
 	"hermes-ai/internal/infras/utils"
 )
@@ -20,15 +19,30 @@ type TokenService struct {
 	userRepo     repo.UserRepository
 	cacheRepo    repo.CacheRepository
 	batchUpdater *BatchUpdater
+	TokenConfig
+}
+
+type TokenConfig struct {
+	SyncFrequency        int
+	BatchUpdateEnabled   bool
+	QuotaRemindThreshold int64
+	ServerAddress        string
 }
 
 // NewTokenService 创建令牌服务
-func NewTokenService(tokenRepo repo.TokenRepository, userRepo repo.UserRepository, cacheRepo repo.CacheRepository, batchUpdater *BatchUpdater) *TokenService {
+func NewTokenService(
+	tokenRepo repo.TokenRepository,
+	userRepo repo.UserRepository,
+	cacheRepo repo.CacheRepository,
+	batchUpdater *BatchUpdater,
+	conf TokenConfig,
+) *TokenService {
 	return &TokenService{
 		tokenRepo:    tokenRepo,
 		userRepo:     userRepo,
 		cacheRepo:    cacheRepo,
 		batchUpdater: batchUpdater,
+		TokenConfig:  conf,
 	}
 }
 
@@ -93,7 +107,7 @@ func (s *TokenService) CacheGetTokenByKey(key string) (*entity.Token, error) {
 			return nil, err
 		}
 		cacheErr := s.cacheRepo.Set(fmt.Sprintf("token:%s", key), string(jsonBytes),
-			time.Duration(config.SyncFrequency)*time.Second)
+			time.Duration(s.SyncFrequency)*time.Second)
 		if cacheErr != nil {
 			slog.Error("Redis set token error: " + cacheErr.Error())
 		}
@@ -143,7 +157,7 @@ func (s *TokenService) IncreaseTokenQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeTokenQuota, id, quota)
 		return nil
 	}
@@ -156,7 +170,7 @@ func (s *TokenService) DecreaseTokenQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeTokenQuota, id, -quota)
 		return nil
 	}
@@ -183,7 +197,7 @@ func (s *TokenService) PreConsumeTokenQuota(tokenId int, quota int64) error {
 		return errors.New("用户额度不足")
 	}
 
-	quotaTooLow := userQuota >= config.QuotaRemindThreshold && userQuota-quota < config.QuotaRemindThreshold
+	quotaTooLow := userQuota >= s.QuotaRemindThreshold && userQuota-quota < s.QuotaRemindThreshold
 	noMoreQuota := userQuota-quota <= 0
 	if quotaTooLow || noMoreQuota {
 		go func() {
@@ -199,7 +213,7 @@ func (s *TokenService) PreConsumeTokenQuota(tokenId int, quota int64) error {
 				contentText = "您的额度即将用尽"
 			}
 			if email != "" {
-				topUpLink := fmt.Sprintf("%s/topup", config.ServerAddress)
+				topUpLink := fmt.Sprintf("%s/topup", s.ServerAddress)
 				content := message2.EmailTemplate(
 					prompt,
 					fmt.Sprintf(`
@@ -258,7 +272,7 @@ func (s *TokenService) increaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, quota)
 		return nil
 	}
@@ -269,9 +283,10 @@ func (s *TokenService) decreaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
-	if config.BatchUpdateEnabled && s.batchUpdater != nil {
+	if s.BatchUpdateEnabled && s.batchUpdater != nil {
 		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
+
 	return s.userRepo.DecreaseUserQuota(id, quota)
 }

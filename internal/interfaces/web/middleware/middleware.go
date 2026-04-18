@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
-	"hermes-ai/internal/application"
+	"hermes-ai/internal/providers"
 )
 
 type Middlewares struct {
@@ -15,7 +15,7 @@ type Middlewares struct {
 
 // NewMiddlewares 创建middleware
 func NewMiddlewares(
-	services *application.Services,
+	services *providers.Services,
 	rdb redis.UniversalClient,
 	conf RateLimitConfig,
 	turnstileCheckEnabled bool,

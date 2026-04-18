@@ -42,6 +42,30 @@ hermes-ai 使用 JSON 格式进行请求和响应。
 }
 ```
 
+### Anthropic Messages 接口
+**POST** `/v1/messages`
+
+原生 Anthropic Messages API 转发接口，用于 Claude Code 等直接调用 Anthropic 原生协议的场景。
+
+**请求头**：
+- `Authorization`: `Bearer sk-xxx`（API Token）
+- `anthropic-version`: 可选，默认为 `2023-06-01`
+
+**请求体示例**：
+```json
+{
+  "model": "claude-3-5-sonnet-20241022",
+  "max_tokens": 4096,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, world!"
+    }
+  ],
+  "stream": false
+}
+```
+
 ## 其他
 ### 充值链接上的附加参数
 hermes-ai 会在用户点击充值按钮的时候，将用户的信息和充值信息附加在链接上，例如：

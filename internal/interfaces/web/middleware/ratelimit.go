@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	"hermes-ai/internal/infras/ratelimit"
-	"hermes-ai/internal/infras/rds"
 )
 
 var (
@@ -45,6 +44,8 @@ type RateLimitConfig struct {
 	RateLimitKeyExpirationDuration time.Duration
 
 	DebugEnabled bool
+
+	RedisEnabled bool
 }
 
 // NewRateLimitMiddleware 创建ratelimit
@@ -115,7 +116,7 @@ func (r *RateLimitMiddleware) rateLimitFactory(maxRequestNum int, duration int64
 		}
 	}
 
-	if rds.RedisEnabled {
+	if r.RedisEnabled {
 		return func(c *gin.Context) {
 			r.redisRateLimiter(c, maxRequestNum, duration, mark)
 		}

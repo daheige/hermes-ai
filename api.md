@@ -1650,5 +1650,9 @@ POST /v1/messages
 | TokenAuth | 需要 API Token 认证 |
 | CriticalRateLimit | 关键接口限流 |
 | GlobalAPIRateLimit | 全局 API 限流 |
+| DownloadRateLimit | 下载接口限流 |
+| UploadRateLimit | 上传接口限流 |
 | CORS | 跨域支持 |
 | TurnstileCheck | Turnstile 验证检查 |
+| Distributor | Relay 路由渠道分发 |
+| RelayPanicRecover | Relay 异常恢复 |
