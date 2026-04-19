@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -38,6 +39,10 @@ func (r *RedisCacheImpl) Delete(key string) error {
 	return r.redisClient.Del(context.Background(), key).Err()
 }
 
+func (r *RedisCacheImpl) IncrBy(ctx context.Context, key string, value int64) (int64, error) {
+	return r.redisClient.IncrBy(ctx, key, value).Result()
+}
+
 // Decrease 减少缓存值
 func (r *RedisCacheImpl) Decrease(key string, value int64) error {
 	return r.redisClient.DecrBy(context.Background(), key, value).Err()
@@ -46,4 +51,18 @@ func (r *RedisCacheImpl) Decrease(key string, value int64) error {
 // IsEnabled 缓存是否启用
 func (r *RedisCacheImpl) IsEnabled() bool {
 	return true
+}
+
+// Exists 判断key是否存在
+func (r *RedisCacheImpl) Exists(key string) (bool, error) {
+	num, err := r.redisClient.Exists(context.Background(), key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return num > 0, nil
 }

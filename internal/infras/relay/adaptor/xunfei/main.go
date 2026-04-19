@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -136,8 +137,9 @@ func buildXunfeiAuthUrl(hostUrl string, apiKey, apiSecret string) string {
 	}
 	ul, err := url.Parse(hostUrl)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("failed to parse host url,err:", err)
 	}
+
 	date := time.Now().UTC().Format(time.RFC1123)
 	signString := []string{"host: " + ul.Host, "date: " + date, "GET " + ul.Path + " HTTP/1.1"}
 	sign := strings.Join(signString, "\n")

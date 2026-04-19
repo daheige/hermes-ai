@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"text/template"
@@ -204,10 +205,10 @@ func StreamHandler(c *gin.Context, awsCli *bedrockruntime.Client) (*model.ErrorW
 			c.Render(-1, customevent.CustomEvent{Data: "data: " + string(jsonStr)})
 			return true
 		case *types.UnknownUnionMember:
-			fmt.Println("unknown tag:", v.Tag)
+			log.Println("unknown tag:", v.Tag)
 			return false
 		default:
-			fmt.Println("union is nil or unknown type")
+			log.Println("union is nil or unknown type")
 			return false
 		}
 	})

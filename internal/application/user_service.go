@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/blacklist"
 	"hermes-ai/internal/infras/crypto"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/utils"
@@ -97,9 +97,14 @@ func (s *UserService) DeleteUserById(id int) error {
 		return err
 	}
 
-	blacklist.BanUser(user.Id)
+	err = s.userRepo.DeleteUserById(id)
+	if err != nil {
+		return err
+	}
 
-	return s.userRepo.DeleteUserById(id)
+	_ = s.BanUser(user.Id)
+
+	return nil
 }
 
 // Insert 插入用户
@@ -162,12 +167,21 @@ func (s *UserService) Update(user *entity.User, updatePassword bool) error {
 			return err
 		}
 	}
-	if user.Status == entity.UserStatusDisabled {
-		blacklist.BanUser(user.Id)
-	} else if user.Status == entity.UserStatusEnabled {
-		blacklist.UnbanUser(user.Id)
+
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return err
 	}
-	return s.userRepo.Update(user)
+
+	// 更新cache状态
+	if user.Status == entity.UserStatusDisabled {
+		err = s.BanUser(user.Id)
+		log.Println("err: ", err)
+	} else if user.Status == entity.UserStatusEnabled {
+		_ = s.UnbanUser(user.Id)
+	}
+
+	return nil
 }
 
 // ValidateAndFill 验证用户名密码并填充用户信息
@@ -276,10 +290,12 @@ func (s *UserService) CacheIsUserEnabled(userId int) (bool, error) {
 	if !s.cacheRepo.IsEnabled() {
 		return s.IsUserEnabled(userId)
 	}
+
 	enabled, err := s.cacheRepo.Get(fmt.Sprintf("user_enabled:%d", userId))
 	if err == nil {
 		return enabled == "1", nil
 	}
+
 	userEnabled, err := s.IsUserEnabled(userId)
 	if err != nil {
 		return false, err
@@ -400,6 +416,7 @@ func (s *UserService) CacheDecreaseUserQuota(id int, quota int64) error {
 	if !s.cacheRepo.IsEnabled() {
 		return nil
 	}
+
 	return s.cacheRepo.Decrease(fmt.Sprintf("user_quota:%d", id), quota)
 }
 
@@ -451,4 +468,26 @@ func (s *UserService) UpdateUserUsedQuotaAndRequestCount(id int, quota int64) {
 	if err != nil {
 		slog.Error("failed to update user used quota and request count: " + err.Error())
 	}
+}
+
+// BanUser 拉黑用户
+func (s *UserService) BanUser(id int) error {
+	key := s.blacklistKey(id)
+	return s.cacheRepo.Set(key, "1", 0)
+}
+
+// UnbanUser 取消拉黑
+func (s *UserService) UnbanUser(id int) error {
+	key := s.blacklistKey(id)
+	return s.cacheRepo.Delete(key)
+}
+
+// IsUserBanned 是否拉黑
+func (s *UserService) IsUserBanned(id int) (bool, error) {
+	key := s.blacklistKey(id)
+	return s.cacheRepo.Exists(key)
+}
+
+func (s *UserService) blacklistKey(id int) string {
+	return fmt.Sprintf("blacklist_userid:%d", id)
 }

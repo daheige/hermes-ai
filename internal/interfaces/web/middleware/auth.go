@@ -10,7 +10,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/blacklist"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/network"
@@ -66,7 +65,8 @@ func (a *AuthMiddleware) authHelper(c *gin.Context, minRole int) {
 		}
 	}
 
-	if user.Status == entity.UserStatusDisabled || blacklist.IsUserBanned(user.Id) {
+	ok, _ := a.userService.IsUserBanned(user.Id)
+	if user.Status == entity.UserStatusDisabled || ok {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户已被封禁",
@@ -139,10 +139,12 @@ func (a *AuthMiddleware) TokenAuth() func(c *gin.Context) {
 		}
 
 		userEnabled, _ := a.userService.CacheIsUserEnabled(token.UserId)
-		if !userEnabled || blacklist.IsUserBanned(token.UserId) {
+		ok, _ := a.userService.IsUserBanned(token.UserId)
+		if !userEnabled || ok {
 			abortWithMessage(c, http.StatusForbidden, "用户已被封禁")
 			return
 		}
+
 		requestModel, err := getRequestModel(c)
 		if err != nil && shouldCheckModel(c) {
 			abortWithMessage(c, http.StatusBadRequest, err.Error())

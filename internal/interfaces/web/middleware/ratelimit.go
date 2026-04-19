@@ -2,13 +2,14 @@ package middleware
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/ratelimit"
 )
 
@@ -58,7 +59,8 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 	key := "rateLimit:" + mark + c.ClientIP()
 	listLength, err := r.rdb.LLen(ctx, key).Result()
 	if err != nil {
-		fmt.Println(err.Error())
+		slog.With("request_id", logger.GetRequestID(ctx)).
+			Error("failed to check rate limit len", "error", err.Error())
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
@@ -71,7 +73,8 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 		oldTimeStr, _ := r.rdb.LIndex(ctx, key, -1).Result()
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
-			fmt.Println(err)
+			slog.With("request_id", logger.GetRequestID(ctx)).
+				Error("failed to get rate limit lindex", "error", err.Error())
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -80,11 +83,13 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 		nowTimeStr := time.Now().Format(timeFormat)
 		nowTime, err := time.Parse(timeFormat, nowTimeStr)
 		if err != nil {
-			fmt.Println(err)
+			slog.With("request_id", logger.GetRequestID(ctx)).
+				Error("failed to parse time", "error", err.Error())
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
 		}
+
 		// time.Since will return negative number!
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
