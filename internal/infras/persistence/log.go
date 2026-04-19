@@ -122,7 +122,7 @@ func (l *LogRepoImpl) SumUsedQuota(p entity.LogUsedQuotaQueryParams) int64 {
 	}
 
 	var quota int64
-	tx.Where("type = ?", entity.LogTypeConsume).Scan(&quota)
+	tx.Where("type = ?", entity.LogTypeConsume).First(&quota)
 	return quota
 }
 
@@ -147,7 +147,7 @@ func (l *LogRepoImpl) SumUsedToken(p entity.LogUsedTokenQueryParams) int {
 	}
 
 	var token int
-	tx.Where("type = ?", entity.LogTypeConsume).Scan(&token)
+	tx.Where("type = ?", entity.LogTypeConsume).First(&token)
 	return token
 }
 

@@ -7,7 +7,7 @@ import (
 // ChannelRepository 渠道仓储接口
 type ChannelRepository interface {
 	// GetAllChannels 获取所有渠道
-	GetAllChannels(startIdx int, num int, scope string) ([]*entity.Channel, error)
+	GetAllChannels(offset int, limit int, scope string) ([]*entity.Channel, error)
 	// SearchChannels 搜索渠道
 	SearchChannels(keyword string) ([]*entity.Channel, error)
 	// GetChannelById 根据ID获取渠道

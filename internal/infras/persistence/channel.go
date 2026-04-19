@@ -1,11 +1,13 @@
 package persistence
 
 import (
+	"strconv"
+	"time"
+
 	"gorm.io/gorm"
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/utils"
 )
 
 var _ repo.ChannelRepository = (*ChannelRepoImpl)(nil)
@@ -21,7 +23,7 @@ func NewChannelRepo(db *gorm.DB) repo.ChannelRepository {
 }
 
 // GetAllChannels 获取所有渠道
-func (c *ChannelRepoImpl) GetAllChannels(startIdx int, num int, scope string) ([]*entity.Channel, error) {
+func (c *ChannelRepoImpl) GetAllChannels(offset int, limit int, scope string) ([]*entity.Channel, error) {
 	var channels []*entity.Channel
 	var err error
 	switch scope {
@@ -31,7 +33,7 @@ func (c *ChannelRepoImpl) GetAllChannels(startIdx int, num int, scope string) ([
 		err = c.db.Order("id desc").Where("status = ? or status = ?",
 			entity.ChannelStatusAutoDisabled, entity.ChannelStatusManuallyDisabled).Find(&channels).Error
 	default:
-		err = c.db.Order("id desc").Limit(num).Offset(startIdx).Omit("key").Find(&channels).Error
+		err = c.db.Order("id desc").Limit(limit).Offset(offset).Omit("key").Find(&channels).Error
 	}
 
 	return channels, err
@@ -40,7 +42,8 @@ func (c *ChannelRepoImpl) GetAllChannels(startIdx int, num int, scope string) ([
 // SearchChannels 搜索渠道
 func (c *ChannelRepoImpl) SearchChannels(keyword string) ([]*entity.Channel, error) {
 	var channels []*entity.Channel
-	err := c.db.Omit("key").Where("id = ? or name LIKE ?", utils.String2Int(keyword), keyword+"%").
+	id, _ := strconv.Atoi(keyword)
+	err := c.db.Omit("key").Where("id = ? or name LIKE ?", id, keyword+"%").
 		Find(&channels).Error
 	return channels, err
 }
@@ -54,6 +57,7 @@ func (c *ChannelRepoImpl) GetChannelById(id int, selectAll bool) (*entity.Channe
 	} else {
 		err = c.db.Omit("key").First(&channel, "id = ?", id).Error
 	}
+
 	return &channel, err
 }
 
@@ -73,6 +77,7 @@ func (c *ChannelRepoImpl) Update(channel *entity.Channel) error {
 	if err != nil {
 		return err
 	}
+
 	// 重新加载更新后的数据
 	c.db.Model(channel).First(channel, "id = ?", channel.Id)
 	return nil
@@ -86,7 +91,7 @@ func (c *ChannelRepoImpl) Delete(id int) error {
 // UpdateResponseTime 更新渠道响应时间
 func (c *ChannelRepoImpl) UpdateResponseTime(id int, responseTime int64) {
 	c.db.Model(&entity.Channel{Id: id}).Select("response_time", "test_time").Updates(entity.Channel{
-		TestTime:     utils.GetTimestamp(),
+		TestTime:     time.Now().Unix(),
 		ResponseTime: int(responseTime),
 	})
 }
@@ -94,7 +99,7 @@ func (c *ChannelRepoImpl) UpdateResponseTime(id int, responseTime int64) {
 // UpdateBalance 更新渠道余额
 func (c *ChannelRepoImpl) UpdateBalance(id int, balance float64) {
 	c.db.Model(&entity.Channel{Id: id}).Select("balance_updated_time", "balance").Updates(entity.Channel{
-		BalanceUpdatedTime: utils.GetTimestamp(),
+		BalanceUpdatedTime: time.Now().Unix(),
 		Balance:            balance,
 	})
 }

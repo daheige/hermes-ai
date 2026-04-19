@@ -116,6 +116,7 @@ func (s *OptionService) UpdateOption(key string, value string) error {
 	if err != nil {
 		return err
 	}
+
 	return s.UpdateOptionMap(key, value)
 }
 

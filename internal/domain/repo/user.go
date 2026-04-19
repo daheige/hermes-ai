@@ -82,4 +82,7 @@ type UserRepository interface {
 	UpdateUserUsedQuota(id int, quota int64) error
 	// UpdateUserRequestCount 更新用户请求计数
 	UpdateUserRequestCount(id int, count int) error
+
+	// 软删除用户
+	DeleteUserById(id int) error
 }

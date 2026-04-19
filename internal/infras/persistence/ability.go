@@ -36,7 +36,8 @@ func (a *AbilityRepoImpl) GetRandomSatisfiedChannel(group, model string, ignoreF
 	} else {
 		maxPrioritySubQuery := a.db.Model(&entity.Ability{}).Select("MAX(priority)").
 			Where(gc+" = ? and model = ? and enabled = "+tv, group, model)
-		channelQuery = a.db.Where(gc+" = ? and model = ? and enabled = "+tv+" and priority = (?)", group, model, maxPrioritySubQuery)
+		channelQuery = a.db.
+			Where(gc+" = ? and model = ? and enabled = "+tv+" and priority = (?)", group, model, maxPrioritySubQuery)
 	}
 
 	err := channelQuery.Order(ro).First(&ability).Error
@@ -114,5 +115,6 @@ func BuildAbilities(channel *entity.Channel) []entity.Ability {
 			abilities = append(abilities, ability)
 		}
 	}
+
 	return abilities
 }

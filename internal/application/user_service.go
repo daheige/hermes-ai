@@ -96,10 +96,10 @@ func (s *UserService) DeleteUserById(id int) error {
 	if err != nil {
 		return err
 	}
+
 	blacklist.BanUser(user.Id)
-	user.Username = fmt.Sprintf("deleted_%s", utils.UUID())
-	user.Status = entity.UserStatusDeleted
-	return s.userRepo.Update(user)
+
+	return s.userRepo.DeleteUserById(id)
 }
 
 // Insert 插入用户

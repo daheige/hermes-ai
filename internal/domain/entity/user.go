@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"gorm.io/gorm"
+	"gorm.io/plugin/soft_delete"
 )
 
 const (
@@ -41,7 +41,7 @@ type User struct {
 	InviterId        int    `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 
 	// 软删除
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;type:bigint;default:null" json:"-"`
+	DeletedAt soft_delete.DeletedAt `gorm:"column:deleted_at;type:bigint;default:null" json:"-"`
 }
 
 const UserTable = "users"

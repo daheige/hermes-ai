@@ -2,12 +2,12 @@ package persistence
 
 import (
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/utils"
 )
 
 var _ repo.RedemptionRepository = (*RedemptionRepoImpl)(nil)
@@ -39,10 +39,11 @@ func (r *RedemptionRepoImpl) SearchRedemptions(keyword string) ([]*entity.Redemp
 // GetRedemptionById 根据ID获取兑换码
 func (r *RedemptionRepoImpl) GetRedemptionById(id int) (*entity.Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, errors.New("id required")
 	}
+
 	var redemption entity.Redemption
-	err := r.db.First(&redemption, "id = ?", id).Error
+	err := r.db.Where("id = ?", id).First(&redemption).Error
 	return &redemption, err
 }
 
@@ -59,13 +60,15 @@ func (r *RedemptionRepoImpl) Update(redemption *entity.Redemption) error {
 // Delete 删除兑换码
 func (r *RedemptionRepoImpl) Delete(id int) error {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return errors.New("id required")
 	}
+
 	var redemption entity.Redemption
 	err := r.db.Where("id = ?", id).First(&redemption).Error
 	if err != nil {
 		return err
 	}
+
 	return r.db.Delete(&redemption).Error
 }
 
@@ -86,6 +89,7 @@ func (r *RedemptionRepoImpl) Redeem(key string, userId int) (*entity.Redemption,
 		if err != nil {
 			return errors.New("无效的兑换码")
 		}
+
 		if redemption.Status != entity.RedemptionCodeStatusEnabled {
 			return errors.New("该兑换码已被使用")
 		}
@@ -95,8 +99,9 @@ func (r *RedemptionRepoImpl) Redeem(key string, userId int) (*entity.Redemption,
 		if err != nil {
 			return err
 		}
+
 		// 更新兑换码状态
-		redemption.RedeemedTime = utils.GetTimestamp()
+		redemption.RedeemedTime = time.Now().Unix()
 		redemption.Status = entity.RedemptionCodeStatusUsed
 		return tx.Save(&redemption).Error
 	})
@@ -104,5 +109,6 @@ func (r *RedemptionRepoImpl) Redeem(key string, userId int) (*entity.Redemption,
 	if err != nil {
 		return nil, errors.New("兑换失败，" + err.Error())
 	}
+
 	return &redemption, nil
 }

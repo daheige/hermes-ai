@@ -7,7 +7,7 @@ import (
 // TokenRepository 令牌仓储接口
 type TokenRepository interface {
 	// GetAllUserTokens 获取用户所有令牌
-	GetAllUserTokens(userId int, startIdx int, num int, order string) ([]*entity.Token, error)
+	GetAllUserTokens(userId int, offset int, limit int, order string) ([]*entity.Token, error)
 	// SearchUserTokens 搜索用户令牌
 	SearchUserTokens(userId int, keyword string) ([]*entity.Token, error)
 	// GetTokenByKey 根据Key获取令牌

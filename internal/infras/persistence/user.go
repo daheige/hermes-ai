@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"gorm.io/gorm"
@@ -289,7 +288,7 @@ func (u *UserRepoImpl) GetUsernameById(id int) string {
 // GetRootUserEmail 获取root用户邮箱
 func (u *UserRepoImpl) GetRootUserEmail() string {
 	var email string
-	u.db.Model(&entity.User{}).Where("role = ?", entity.RoleRootUser).Select("email").Find(&email)
+	u.db.Model(&entity.User{}).Where("role = ?", entity.RoleRootUser).Select("email").First(&email)
 	return email
 }
 
@@ -330,17 +329,11 @@ func (u *UserRepoImpl) UpdateUserRequestCount(id int, count int) error {
 		Update("request_count", gorm.Expr("request_count + ?", count)).Error
 }
 
-// DeleteUserById 软删除用户(重命名用户名并更新状态)
-func DeleteUserById(db *gorm.DB, id int) error {
+// DeleteUserById 软删除用户
+func (u *UserRepoImpl) DeleteUserById(id int) error {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return errors.New("id required")
 	}
-	var user entity.User
-	err := db.First(&user, "id = ?", id).Error
-	if err != nil {
-		return err
-	}
-	user.Username = fmt.Sprintf("deleted_%d", id)
-	user.Status = entity.UserStatusDeleted
-	return db.Model(&user).Updates(&user).Error
+
+	return u.db.Where("id = ?", id).Delete(&entity.User{}).Error
 }

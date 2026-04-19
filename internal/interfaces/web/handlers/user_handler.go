@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -533,6 +534,7 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 		})
 		return
 	}
+
 	if user.Id == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -570,6 +572,7 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 			})
 			return
 		}
+		log.Println("user id:", user.Id)
 		if err := h.service.DeleteUserById(user.Id); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

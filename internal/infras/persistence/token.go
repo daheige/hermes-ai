@@ -1,11 +1,12 @@
 package persistence
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
-	"hermes-ai/internal/infras/utils"
 )
 
 var _ repo.TokenRepository = (*TokenRepoImpl)(nil)
@@ -21,7 +22,7 @@ func NewTokenRepo(db *gorm.DB) repo.TokenRepository {
 }
 
 // GetAllUserTokens 获取用户所有令牌
-func (t *TokenRepoImpl) GetAllUserTokens(userId int, startIdx int, num int, order string) ([]*entity.Token, error) {
+func (t *TokenRepoImpl) GetAllUserTokens(userId int, offset int, limit int, order string) ([]*entity.Token, error) {
 	var tokens []*entity.Token
 	query := t.db.Where("user_id = ?", userId)
 
@@ -34,7 +35,7 @@ func (t *TokenRepoImpl) GetAllUserTokens(userId int, startIdx int, num int, orde
 		query = query.Order("id desc")
 	}
 
-	err := query.Limit(num).Offset(startIdx).Find(&tokens).Error
+	err := query.Limit(limit).Offset(offset).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -56,14 +57,14 @@ func (t *TokenRepoImpl) GetTokenByKey(key string) (*entity.Token, error) {
 // GetTokenByIds 根据ID和用户ID获取令牌
 func (t *TokenRepoImpl) GetTokenByIds(id int, userId int) (*entity.Token, error) {
 	var token entity.Token
-	err := t.db.First(&token, "id = ? and user_id = ?", id, userId).Error
+	err := t.db.Where("id = ? and user_id = ?", id, userId).First(&token).Error
 	return &token, err
 }
 
 // GetTokenById 根据ID获取令牌
 func (t *TokenRepoImpl) GetTokenById(id int) (*entity.Token, error) {
 	var token entity.Token
-	err := t.db.First(&token, "id = ?", id).Error
+	err := t.db.Where("id = ?", id).First(&token).Error
 	return &token, err
 }
 
@@ -74,7 +75,8 @@ func (t *TokenRepoImpl) Insert(token *entity.Token) error {
 
 // Update 更新令牌
 func (t *TokenRepoImpl) Update(token *entity.Token) error {
-	return t.db.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota", "models", "subnet").
+	return t.db.Model(token).
+		Select("name", "status", "expired_time", "remain_quota", "unlimited_quota", "models", "subnet").
 		Updates(token).Error
 }
 
@@ -90,6 +92,7 @@ func (t *TokenRepoImpl) Delete(id int, userId int) error {
 	if err != nil {
 		return err
 	}
+
 	return t.db.Delete(&token).Error
 }
 
@@ -99,7 +102,7 @@ func (t *TokenRepoImpl) IncreaseQuota(id int, quota int64) error {
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota - ?", quota),
-			"accessed_time": utils.GetTimestamp(),
+			"accessed_time": time.Now().Unix(),
 		},
 	).Error
 }
@@ -110,7 +113,7 @@ func (t *TokenRepoImpl) DecreaseQuota(id int, quota int64) error {
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", quota),
-			"accessed_time": utils.GetTimestamp(),
+			"accessed_time": time.Now().Unix(),
 		},
 	).Error
 }
