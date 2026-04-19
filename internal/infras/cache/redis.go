@@ -66,3 +66,9 @@ func (r *RedisCacheImpl) Exists(key string) (bool, error) {
 
 	return num > 0, nil
 }
+
+// HIncrBy hash hincrby实现
+func (r *RedisCacheImpl) HIncrBy(ctx context.Context, key string, field string, value int64) (int64, error) {
+	num, err := r.redisClient.HIncrBy(ctx, key, field, value).Result()
+	return num, err
+}

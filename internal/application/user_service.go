@@ -12,6 +12,7 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
+	"hermes-ai/internal/infras/batchupdater"
 	"hermes-ai/internal/infras/crypto"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/utils"
@@ -23,7 +24,7 @@ type UserService struct {
 	tokenRepo    repo.TokenRepository
 	cacheRepo    repo.CacheRepository
 	logService   *LogService
-	batchUpdater *BatchUpdater
+	batchUpdater repo.BatchUpdater
 	UserConfig
 }
 
@@ -44,7 +45,7 @@ func NewUserService(
 	tokenRepo repo.TokenRepository,
 	cacheRepo repo.CacheRepository,
 	logService *LogService,
-	batchUpdater *BatchUpdater,
+	batchUpdater repo.BatchUpdater,
 	conf UserConfig,
 ) *UserService {
 	return &UserService{
@@ -433,10 +434,10 @@ func (s *UserService) GetRootUserEmail() string {
 // IncreaseUserQuota 增加用户配额
 func (s *UserService) IncreaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeUserQuota, id, quota)
 		return nil
 	}
 
@@ -446,10 +447,10 @@ func (s *UserService) IncreaseUserQuota(id int, quota int64) error {
 // DecreaseUserQuota 减少用户配额
 func (s *UserService) DecreaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, -quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
 
@@ -458,9 +459,10 @@ func (s *UserService) DecreaseUserQuota(id int, quota int64) error {
 
 // UpdateUserUsedQuotaAndRequestCount 更新用户已用配额和请求计数
 func (s *UserService) UpdateUserUsedQuotaAndRequestCount(id int, quota int64) {
+	// log.Println("batch enable", s.BatchUpdateEnabled)
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeUsedQuota, id, quota)
-		s.batchUpdater.AddRecord(BatchUpdateTypeRequestCount, id, 1)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeUsedQuota, id, quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeRequestCount, id, 1)
 		return
 	}
 

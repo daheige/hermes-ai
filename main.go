@@ -91,7 +91,10 @@ func main() {
 	cfg.CacheEnabled = true // 使用redis cache
 
 	// init repos
-	repos := providers.InitRepositories(db, logDB, redisClient)
+	repos := providers.InitRepositories(db, logDB, redisClient, providers.BatchUpdaterConfig{
+		BatchInterval:      time.Duration(cfg.BatchUpdateInterval) * time.Second,
+		BatchUpdateEnabled: cfg.BatchUpdateEnabled,
+	})
 	// Initialize application services
 	services := providers.InitServices(repos, cfg)
 
@@ -118,10 +121,10 @@ func main() {
 	}
 
 	// 启动批量更新器
-	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
-		cfg.BatchUpdateEnabled = true
+	if cfg.BatchUpdateEnabled {
 		slog.Info("batch update enabled with interval " + strconv.Itoa(cfg.BatchUpdateInterval) + "s")
-		services.BatchUpdater.Start()
+		repos.BatchUpdater.Start()
+		defer repos.BatchUpdater.Stop()
 	}
 
 	if config.EnableMetric {

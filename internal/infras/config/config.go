@@ -98,7 +98,8 @@ var (
 
 	SyncFrequency = env.Int("SYNC_FREQUENCY", 10*60) // unit is second
 
-	BatchUpdateEnabled  = false
+	BatchUpdateEnabled = env.Bool("BATCH_UPDATE_ENABLED", false)
+
 	BatchUpdateInterval = env.Int("BATCH_UPDATE_INTERVAL", 5)
 
 	RelayTimeout = env.Int("RELAY_TIMEOUT", 0) // unit is second

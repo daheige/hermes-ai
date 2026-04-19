@@ -9,6 +9,7 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
+	"hermes-ai/internal/infras/batchupdater"
 	message2 "hermes-ai/internal/infras/message"
 	"hermes-ai/internal/infras/utils"
 )
@@ -18,7 +19,7 @@ type TokenService struct {
 	tokenRepo    repo.TokenRepository
 	userRepo     repo.UserRepository
 	cacheRepo    repo.CacheRepository
-	batchUpdater *BatchUpdater
+	batchUpdater repo.BatchUpdater
 	TokenConfig
 }
 
@@ -34,7 +35,7 @@ func NewTokenService(
 	tokenRepo repo.TokenRepository,
 	userRepo repo.UserRepository,
 	cacheRepo repo.CacheRepository,
-	batchUpdater *BatchUpdater,
+	batchUpdater repo.BatchUpdater,
 	conf TokenConfig,
 ) *TokenService {
 	return &TokenService{
@@ -158,7 +159,7 @@ func (s *TokenService) IncreaseTokenQuota(id int, quota int64) error {
 		return errors.New("quota 不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeTokenQuota, id, quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeTokenQuota, id, quota)
 		return nil
 	}
 
@@ -168,12 +169,13 @@ func (s *TokenService) IncreaseTokenQuota(id int, quota int64) error {
 // DecreaseTokenQuota 减少令牌配额
 func (s *TokenService) DecreaseTokenQuota(id int, quota int64) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeTokenQuota, id, -quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeTokenQuota, id, -quota)
 		return nil
 	}
+
 	return s.tokenRepo.DecreaseQuota(id, quota)
 }
 
@@ -270,12 +272,13 @@ func (s *TokenService) PostConsumeTokenQuota(tokenId int, quota int64) error {
 
 func (s *TokenService) increaseUserQuota(id int, quota int64) error {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeUserQuota, id, quota)
 		return nil
 	}
+
 	return s.userRepo.IncreaseUserQuota(id, quota)
 }
 
@@ -284,7 +287,7 @@ func (s *TokenService) decreaseUserQuota(id int, quota int64) error {
 		return errors.New("quota 不能为负数！")
 	}
 	if s.BatchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeUserQuota, id, -quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
 

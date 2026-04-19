@@ -19,6 +19,8 @@ type CacheRepository interface {
 	// IncrBy
 	IncrBy(ctx context.Context, key string, value int64) (int64, error)
 
+	HIncrBy(ctx context.Context, key string, field string, value int64) (int64, error)
+
 	// Decrease 减少缓存值
 	Decrease(key string, value int64) error
 

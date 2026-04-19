@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"log"
 	"log/slog"
 	"math/rand"
 	"sort"
@@ -12,6 +13,7 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
+	"hermes-ai/internal/infras/batchupdater"
 	"hermes-ai/internal/infras/persistence"
 	"hermes-ai/internal/infras/utils"
 )
@@ -26,7 +28,7 @@ type ChannelService struct {
 	group2model2channels map[string]map[string][]*entity.Channel
 	channelSyncLock      sync.RWMutex
 
-	batchUpdater       *BatchUpdater
+	batchUpdater       repo.BatchUpdater
 	batchUpdateEnabled bool
 	syncFrequency      int
 	cacheEnabled       bool
@@ -37,7 +39,7 @@ func NewChannelService(
 	channelRepo repo.ChannelRepository,
 	abilityRepo repo.AbilityRepository,
 	cacheRepo repo.CacheRepository,
-	batchUpdater *BatchUpdater,
+	batchUpdater repo.BatchUpdater,
 	batchUpdateEnabled bool,
 	syncFrequency int,
 	cacheEnabled bool,
@@ -140,11 +142,14 @@ func (s *ChannelService) UpdateChannelStatusById(id int, status int) {
 // UpdateChannelUsedQuota 更新渠道已用配额
 func (s *ChannelService) UpdateChannelUsedQuota(id int, quota int64) {
 	if s.batchUpdateEnabled && s.batchUpdater != nil {
-		s.batchUpdater.AddRecord(BatchUpdateTypeChannelUsedQuota, id, quota)
+		s.batchUpdater.AddRecord(batchupdater.BatchUpdateTypeChannelUsedQuota, id, quota)
 		return
 	}
 
-	s.channelRepo.UpdateChannelUsedQuota(id, quota)
+	err := s.channelRepo.UpdateChannelUsedQuota(id, quota)
+	if err != nil {
+		log.Printf("failed to update channel id:%d used quota error:%s", id, err.Error())
+	}
 }
 
 // DeleteChannelByStatus 根据状态删除渠道

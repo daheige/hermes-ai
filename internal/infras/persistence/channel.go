@@ -110,8 +110,9 @@ func (c *ChannelRepoImpl) UpdateChannelStatusById(id int, status int) {
 }
 
 // UpdateChannelUsedQuota 更新渠道已用配额
-func (c *ChannelRepoImpl) UpdateChannelUsedQuota(id int, quota int64) {
-	c.db.Model(&entity.Channel{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota))
+func (c *ChannelRepoImpl) UpdateChannelUsedQuota(id int, quota int64) error {
+	return c.db.Model(&entity.Channel{}).
+		Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error
 }
 
 // DeleteChannelByStatus 根据状态删除渠道

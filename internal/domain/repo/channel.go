@@ -27,7 +27,7 @@ type ChannelRepository interface {
 	// UpdateChannelStatusById 更新渠道状态
 	UpdateChannelStatusById(id int, status int)
 	// UpdateChannelUsedQuota 更新渠道已用配额
-	UpdateChannelUsedQuota(id int, quota int64)
+	UpdateChannelUsedQuota(id int, quota int64) error
 	// DeleteChannelByStatus 根据状态删除渠道
 	DeleteChannelByStatus(status int64) (int64, error)
 	// DeleteDisabledChannel 删除禁用的渠道

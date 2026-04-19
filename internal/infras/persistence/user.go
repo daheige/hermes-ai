@@ -324,7 +324,7 @@ func (u *UserRepoImpl) UpdateUserUsedQuota(id int, quota int64) error {
 }
 
 // UpdateUserRequestCount 更新用户请求计数
-func (u *UserRepoImpl) UpdateUserRequestCount(id int, count int) error {
+func (u *UserRepoImpl) UpdateUserRequestCount(id int, count int64) error {
 	return u.db.Model(&entity.User{}).Where("id = ?", id).
 		Update("request_count", gorm.Expr("request_count + ?", count)).Error
 }
