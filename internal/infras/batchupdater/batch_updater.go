@@ -112,6 +112,22 @@ func (b *BatchUpdater) AddRecord(targetType int, id int, value int64) {
 }
 
 func (b *BatchUpdater) batchUpdate() {
+	key := "batch_update:lock"
+	ctx := context.Background()
+	// 这里使用分布式锁，3倍间隔，解决数据竞争问题
+	ok, err := b.redisClient.SetNX(ctx, key, 1, 3*b.batchUpdateInterval).Result()
+	if err != nil {
+		slog.Error("batch update lock error", "error", err.Error())
+		return
+	}
+	if !ok {
+		slog.Error("failed to get batch update lock")
+		return
+	}
+
+	// 释放锁
+	defer b.redisClient.Del(ctx, key)
+
 	slog.Info("batch update started")
 	targetTypeHandlers := map[int]func(int, int64) error{
 		BatchUpdateTypeUserQuota:        b.userRepo.IncreaseUserQuota,
@@ -124,7 +140,7 @@ func (b *BatchUpdater) batchUpdate() {
 	// 开始遍历执行
 	for targetType, handler := range targetTypeHandlers {
 		hashKey := b.hashKey(targetType)
-		err := b.scanAndHandler(hashKey, handler)
+		err = b.scanAndHandler(hashKey, handler)
 		if err != nil {
 			log.Printf("failed to scan and handle target_type %d error:%v", targetType, err)
 		}
