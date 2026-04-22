@@ -464,10 +464,15 @@ func CreateRootAccountIfNeed(db *gorm.DB) error {
 		db.Create(&rootUser)
 		if config.InitialRootToken != "" {
 			slog.Info("creating initial root token as requested")
+			encryptedKey, err := crypto.Encrypt(config.InitialRootToken)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt initial root token: %w", err)
+			}
 			token := entity.Token{
 				Id:             1,
 				UserId:         rootUser.Id,
-				Key:            config.InitialRootToken,
+				Key:            encryptedKey,
+				KeyHash:        crypto.KeyHash(config.InitialRootToken),
 				Status:         entity.TokenStatusEnabled,
 				Name:           "Initial Root Token",
 				CreatedTime:    utils.GetTimestamp(),

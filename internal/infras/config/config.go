@@ -151,4 +151,6 @@ var (
 
 	EnforceIncludeUsage = env.Bool("ENFORCE_INCLUDE_USAGE", false)
 	TestPrompt          = env.String("TEST_PROMPT", "Output only your specific model name with no additional text.")
+
+	AESSecretKey = env.String("AES_SECRET_KEY", "")
 )

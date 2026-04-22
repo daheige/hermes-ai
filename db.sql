@@ -18,6 +18,7 @@ CREATE TABLE `channels` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `type` bigint DEFAULT '0',
     `key` text COLLATE utf8mb4_unicode_ci,
+    `key_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `status` bigint DEFAULT '1',
     `name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `weight` bigint unsigned DEFAULT '0',
@@ -74,21 +75,23 @@ CREATE TABLE `options` (
 CREATE TABLE `redemptions` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `user_id` bigint DEFAULT NULL,
-    `key` char(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `key` text COLLATE utf8mb4_unicode_ci,
+    `key_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `status` bigint DEFAULT '1',
     `name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `quota` bigint DEFAULT '100',
     `created_time` bigint DEFAULT NULL,
     `redeemed_time` bigint DEFAULT NULL,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_redemptions_key` (`key`),
+    UNIQUE KEY `idx_redemptions_key_hash` (`key_hash`),
     KEY `idx_redemptions_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `tokens` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `user_id` bigint DEFAULT NULL,
-    `key` char(48) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+    `key` text COLLATE utf8mb4_unicode_ci,
+    `key_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `status` bigint DEFAULT '1',
     `name` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
     `created_time` bigint DEFAULT NULL,
@@ -100,7 +103,7 @@ CREATE TABLE `tokens` (
     `models` text COLLATE utf8mb4_unicode_ci,
     `subnet` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT '',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_tokens_key` (`key`),
+    UNIQUE KEY `idx_tokens_key_hash` (`key_hash`),
     KEY `idx_tokens_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

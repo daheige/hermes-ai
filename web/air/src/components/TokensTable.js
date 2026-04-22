@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { API, copy, showError, showSuccess, timestamp2string } from '../helpers';
+import { API, copy, showError, showSuccess, timestamp2string, maskKey } from '../helpers';
 
 import { ITEMS_PER_PAGE } from '../constants';
 import { renderQuota } from '../helpers/render';
@@ -139,7 +139,7 @@ const TokensTable = () => {
         <div>
           <Popover
             content={
-              'sk-' + record.key
+              'sk-' + maskKey(record.key)
             }
             style={{ padding: 20 }}
             position="top"

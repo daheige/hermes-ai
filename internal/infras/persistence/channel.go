@@ -8,6 +8,7 @@ import (
 
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/domain/repo"
+	"hermes-ai/internal/infras/crypto"
 )
 
 var _ repo.ChannelRepository = (*ChannelRepoImpl)(nil)
@@ -20,6 +21,43 @@ type ChannelRepoImpl struct {
 // NewChannelRepo 创建渠道仓储
 func NewChannelRepo(db *gorm.DB) repo.ChannelRepository {
 	return &ChannelRepoImpl{db: db}
+}
+
+// encryptChannel 加密 channel 的 key 并计算 hash
+func encryptChannel(c *entity.Channel) error {
+	if c.Key == "" {
+		return nil
+	}
+	if crypto.IsEncrypted(c.Key) {
+		c.KeyHash = crypto.KeyHash(c.Key)
+		return nil
+	}
+	plainKey := c.Key
+	encrypted, err := crypto.Encrypt(plainKey)
+	if err != nil {
+		return err
+	}
+	c.Key = encrypted
+	c.KeyHash = crypto.KeyHash(plainKey)
+	return nil
+}
+
+// decryptChannel 解密 channel 的 key
+func decryptChannel(c *entity.Channel) {
+	if c == nil || c.Key == "" {
+		return
+	}
+	plain, err := crypto.Decrypt(c.Key)
+	if err == nil {
+		c.Key = plain
+	}
+}
+
+// decryptChannels 批量解密
+func decryptChannels(channels []*entity.Channel) {
+	for _, c := range channels {
+		decryptChannel(c)
+	}
 }
 
 // GetAllChannels 获取所有渠道
@@ -36,7 +74,14 @@ func (c *ChannelRepoImpl) GetAllChannels(offset int, limit int, scope string) ([
 		err = c.db.Order("id desc").Limit(limit).Offset(offset).Omit("key").Find(&channels).Error
 	}
 
-	return channels, err
+	if err != nil {
+		return nil, err
+	}
+	// 只有 scope != default 时才解密（default 已经 Omit key）
+	if scope != "" {
+		decryptChannels(channels)
+	}
+	return channels, nil
 }
 
 // SearchChannels 搜索渠道
@@ -58,21 +103,40 @@ func (c *ChannelRepoImpl) GetChannelById(id int, selectAll bool) (*entity.Channe
 		err = c.db.Omit("key").First(&channel, "id = ?", id).Error
 	}
 
-	return &channel, err
+	if err != nil {
+		return nil, err
+	}
+	if selectAll {
+		decryptChannel(&channel)
+	}
+	return &channel, nil
 }
 
 // BatchInsert 批量插入渠道
 func (c *ChannelRepoImpl) BatchInsert(channels []entity.Channel) error {
+	for i := range channels {
+		if err := encryptChannel(&channels[i]); err != nil {
+			return err
+		}
+	}
 	return c.db.Create(&channels).Error
 }
 
 // Insert 插入渠道
 func (c *ChannelRepoImpl) Insert(channel *entity.Channel) error {
+	if err := encryptChannel(channel); err != nil {
+		return err
+	}
 	return c.db.Create(channel).Error
 }
 
 // Update 更新渠道
 func (c *ChannelRepoImpl) Update(channel *entity.Channel) error {
+	if channel.Key != "" {
+		if err := encryptChannel(channel); err != nil {
+			return err
+		}
+	}
 	err := c.db.Model(channel).Updates(channel).Error
 	if err != nil {
 		return err
@@ -80,6 +144,7 @@ func (c *ChannelRepoImpl) Update(channel *entity.Channel) error {
 
 	// 重新加载更新后的数据
 	c.db.Model(channel).First(channel, "id = ?", channel.Id)
+	decryptChannel(channel)
 	return nil
 }
 
@@ -132,5 +197,9 @@ func (c *ChannelRepoImpl) DeleteDisabledChannel() (int64, error) {
 func (c *ChannelRepoImpl) GetEnabledChannels() ([]*entity.Channel, error) {
 	var channels []*entity.Channel
 	err := c.db.Where("status = ?", entity.ChannelStatusEnabled).Find(&channels).Error
-	return channels, err
+	if err != nil {
+		return nil, err
+	}
+	decryptChannels(channels)
+	return channels, nil
 }

@@ -127,6 +127,15 @@ export function openPage(url) {
   window.open(url);
 }
 
+export function maskKey(key) {
+  if (!key) return '';
+  if (key.length <= 7) {
+    if (key.length <= 3) return key;
+    return key.slice(0, 3) + '*'.repeat(key.length - 3);
+  }
+  return key.slice(0, 3) + '*'.repeat(key.length - 7) + key.slice(-4);
+}
+
 export function removeTrailingSlash(url) {
   if (url.endsWith('/')) {
     return url.slice(0, -1);
