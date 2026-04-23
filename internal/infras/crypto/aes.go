@@ -6,23 +6,19 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 )
 
 var aesKey []byte
 
-func init() {
-	secret := os.Getenv("AES_SECRET_KEY")
-	if secret == "" {
-		// fallback to a deterministic key derived from module name
-		// this ensures the app can still run in dev without explicit config
-		// but strongly encourages setting AES_SECRET_KEY in production
-		secret = "hermes-ai-default-secret-key"
-	}
+// AES-GCM加密的AES密钥长度‌可以是 128位、192位或256位‌（即16字节、24字节、32字节）。
+// 其中，‌256位密钥‌（AES-256-GCM）因提供最高安全级别，被广泛用于高安全要求场景，如数据全链路保护和大模型API加密通信。
+// 密钥长度越长，安全性越高，但加密解密性能相对略低。
+
+// InitAesKey 初始化aes key
+func InitAesKey(secret string) {
 	hash := sha256.Sum256([]byte(secret))
 	aesKey = hash[:]
 }
@@ -82,13 +78,6 @@ func Decrypt(ciphertext string) (string, error) {
 	}
 
 	return string(plaintext), nil
-}
-
-// KeyHash returns the SHA256 hex digest of the given key.
-// It is used for exact lookup and unique index without exposing the raw key.
-func KeyHash(key string) string {
-	hash := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(hash[:])
 }
 
 // IsEncrypted tries to decrypt the value and returns true if it appears to be

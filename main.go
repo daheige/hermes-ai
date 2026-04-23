@@ -52,6 +52,9 @@ func main() {
 
 	logger.Default(opts...)
 
+	// 初始化加密的aes key
+	crypto.InitAesKey(os.Getenv("AES_SECRET_KEY"))
+
 	if os.Getenv("GIN_MODE") != gin.DebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}

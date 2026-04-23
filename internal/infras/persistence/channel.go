@@ -32,6 +32,7 @@ func encryptChannel(c *entity.Channel) error {
 		c.KeyHash = crypto.KeyHash(c.Key)
 		return nil
 	}
+	
 	plainKey := c.Key
 	encrypted, err := crypto.Encrypt(plainKey)
 	if err != nil {
