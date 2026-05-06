@@ -21,11 +21,12 @@ import (
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/crypto"
-	"hermes-ai/internal/infras/env"
 	"hermes-ai/internal/infras/httpclient"
 	"hermes-ai/internal/infras/i18n"
 	"hermes-ai/internal/infras/logger"
+	"hermes-ai/internal/infras/message"
 	monitor2 "hermes-ai/internal/infras/monitor"
+	"hermes-ai/internal/infras/relay"
 	"hermes-ai/internal/infras/relay/adaptor/openai"
 	relayServices "hermes-ai/internal/infras/relay/services"
 	"hermes-ai/internal/infras/utils"
@@ -39,38 +40,39 @@ import (
 var buildFS embed.FS
 
 func main() {
+	// 显式初始化系统配置
+	sysCfg := config.InitSystemConfig()
+
 	// 初始化日志
 	opts := []logger.Option{
 		logger.WithAddSource(true),
 		logger.WithEnableJSON(),
-		logger.WithLevel(logger.GetLevel(env.String("LOG_LEVEL", "info"))),
+		logger.WithLevel(logger.GetLevel(sysCfg.LogLevel)),
 	}
 
-	if logDir := env.String("LOG_DIR", ""); logDir != "" {
-		opts = append(opts, logger.WithLogDir(logDir), logger.WithOutputToFile(true))
+	if sysCfg.LogDir != "" {
+		opts = append(opts, logger.WithLogDir(sysCfg.LogDir), logger.WithOutputToFile(true))
 	}
 
 	logger.Default(opts...)
 
 	// 初始化加密的aes key
-	crypto.InitAesKey(os.Getenv("AES_SECRET_KEY"))
+	crypto.InitAesKey(sysCfg.AESSecretKey)
 
-	if os.Getenv("GIN_MODE") != gin.DebugMode {
+	if sysCfg.GinMode != gin.DebugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	if config.DebugEnabled {
-		slog.Info("running in debug mode")
-	}
+	slog.Debug("running in debug mode")
 
 	// Initialize SQL Database
-	db, logDB := config.InitDatabase()
+	db, logDB := config.InitDatabase(sysCfg.SQLDSN, sysCfg.LogSQLDSN, sysCfg.DebugSQLEnabled, sysCfg.SQLMaxIdleConns, sysCfg.SQLMaxOpenConns, sysCfg.SQLMaxLifetime)
 	defer func() {
 		err := config.CloseDB(db)
 		if err != nil {
 			log.Fatalln("failed to close database: " + err.Error())
 		}
 
-		if os.Getenv("LOG_SQL_DSN") != "" {
+		if sysCfg.LogSQLDSN != "" {
 			err := config.CloseDB(logDB)
 			if err != nil {
 				log.Fatalln("failed to close database: " + err.Error())
@@ -78,19 +80,19 @@ func main() {
 		}
 	}()
 
-	err := CreateRootAccountIfNeed(db)
+	err := CreateRootAccountIfNeed(db, sysCfg)
 	if err != nil {
 		log.Fatalln("database init error: " + err.Error())
 	}
 
 	// Initialize Redis
-	redisClient, err := config.InitRedisClient()
+	redisClient, err := config.InitRedisClient(sysCfg.RedisConnString, sysCfg.RedisEnableCluster, sysCfg.RedisPassword, sysCfg.RedisUsername)
 	if err != nil {
 		log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
 
 	// Initialize application config
-	cfg := initAppConfig()
+	cfg := initAppConfig(sysCfg)
 	cfg.CacheEnabled = true // 使用redis cache
 
 	// init repos
@@ -103,7 +105,7 @@ func main() {
 
 	// Initialize options
 	services.OptionService.InitOptionMap()
-	config.RootUserEmail = services.UserService.GetRootUserEmail()
+	sysCfg.RootUserEmail = services.UserService.GetRootUserEmail()
 	slog.Info(fmt.Sprintf("using theme %s", cfg.Theme))
 
 	// 内存缓存对于redis也是
@@ -115,12 +117,8 @@ func main() {
 		go services.ChannelService.SyncChannelCache(cfg.SyncFrequency)
 	}
 
-	if os.Getenv("CHANNEL_TEST_FREQUENCY") != "" {
-		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_TEST_FREQUENCY"))
-		if err != nil {
-			log.Fatalln("failed to parse CHANNEL_TEST_FREQUENCY: " + err.Error())
-		}
-		go handlers.AutomaticallyTestChannels(frequency)
+	if sysCfg.ChannelTestFrequency != 0 {
+		go handlers.AutomaticallyTestChannels(sysCfg.ChannelTestFrequency)
 	}
 
 	// 启动批量更新器
@@ -130,16 +128,17 @@ func main() {
 		defer repos.BatchUpdater.Stop()
 	}
 
-	if config.EnableMetric {
+	if sysCfg.EnableMetric {
 		slog.Info("metric enabled, will disable channel if too much request failed")
 	}
 
-	openai.InitTokenEncoders()
+	tokenCounter := openai.NewTokenCounter(sysCfg.ApproximateTokenEnabled)
+	adaptorFactory := relay.NewAdaptorFactory(tokenCounter)
 	httpclient.Init(httpclient.ClientConfig{
-		UserContentRequestProxy:   config.UserContentRequestProxy,
-		UserContentRequestTimeout: config.UserContentRequestTimeout,
-		RelayProxy:                config.RelayProxy,
-		RelayTimeout:              config.RelayTimeout,
+		UserContentRequestProxy:   sysCfg.UserContentRequestProxy,
+		UserContentRequestTimeout: sysCfg.UserContentRequestTimeout,
+		RelayProxy:                sysCfg.RelayProxy,
+		RelayTimeout:              sysCfg.RelayTimeout,
 	})
 
 	// Initialize i18n
@@ -156,13 +155,33 @@ func main() {
 	ginRouter.Use(middleware.Language())
 
 	// init channel monitor
-	channelMonitor := monitor2.NewChannelMonitor(services.UserService, services.ChannelService)
-	monitor2.InitMetric(channelMonitor)
+	channelMonitor := monitor2.NewChannelMonitor(
+		services.UserService, services.ChannelService,
+		message.SMTPConfig{
+			Server:  sysCfg.SMTPServer,
+			Port:    sysCfg.SMTPPort,
+			Account: sysCfg.SMTPAccount,
+			From:    sysCfg.SMTPFrom,
+			Token:   sysCfg.SMTPToken,
+		},
+		message.MessagePusherConfig{
+			Address: sysCfg.MessagePusherAddress,
+			Token:   sysCfg.MessagePusherToken,
+		},
+		sysCfg.SystemName,
+		sysCfg.RootUserEmail,
+	)
+	var metricCollector *monitor2.MetricCollector
+	if sysCfg.EnableMetric {
+		metricCollector = monitor2.NewMetricCollector(channelMonitor, sysCfg.MetricQueueSize, sysCfg.MetricSuccessRateThreshold, sysCfg.MetricSuccessChanSize, sysCfg.MetricFailChanSize)
+	}
 
 	// Initialize handler container with services
 	handlerContainer := handlers.NewHandlerContainer(
 		services,
 		channelMonitor,
+		adaptorFactory,
+		metricCollector,
 		initHandlerParams(cfg),
 	)
 
@@ -171,27 +190,27 @@ func main() {
 
 	// init middlewares
 	rateLimitConf := middleware.RateLimitConfig{
-		GlobalWebRateLimitNum:          config.GlobalWebRateLimitNum,
-		GlobalWebRateLimitDuration:     config.GlobalWebRateLimitDuration,
-		GlobalApiRateLimitNum:          config.GlobalApiRateLimitNum,
-		GlobalApiRateLimitDuration:     config.GlobalApiRateLimitDuration,
-		CriticalRateLimitNum:           config.CriticalRateLimitNum,
-		CriticalRateLimitDuration:      config.CriticalRateLimitDuration,
-		DownloadRateLimitNum:           config.DownloadRateLimitNum,
-		DownloadRateLimitDuration:      config.DownloadRateLimitDuration,
-		UploadRateLimitNum:             config.UploadRateLimitNum,
-		UploadRateLimitDuration:        config.UploadRateLimitDuration,
-		RateLimitKeyExpirationDuration: config.RateLimitKeyExpirationDuration,
-		DebugEnabled:                   config.DebugEnabled,
+		GlobalWebRateLimitNum:          sysCfg.GlobalWebRateLimitNum,
+		GlobalWebRateLimitDuration:     sysCfg.GlobalWebRateLimitDuration,
+		GlobalApiRateLimitNum:          sysCfg.GlobalApiRateLimitNum,
+		GlobalApiRateLimitDuration:     sysCfg.GlobalApiRateLimitDuration,
+		CriticalRateLimitNum:           sysCfg.CriticalRateLimitNum,
+		CriticalRateLimitDuration:      sysCfg.CriticalRateLimitDuration,
+		DownloadRateLimitNum:           sysCfg.DownloadRateLimitNum,
+		DownloadRateLimitDuration:      sysCfg.DownloadRateLimitDuration,
+		UploadRateLimitNum:             sysCfg.UploadRateLimitNum,
+		UploadRateLimitDuration:        sysCfg.UploadRateLimitDuration,
+		RateLimitKeyExpirationDuration: sysCfg.RateLimitKeyExpirationDuration,
+		DebugEnabled:                   sysCfg.DebugEnabled,
 		RedisEnabled:                   true, // 使用redis cache
 	}
 	middlewares := middleware.NewMiddlewares(
-		services, redisClient, rateLimitConf, config.TurnstileCheckEnabled, config.TurnstileSecretKey,
+		services, redisClient, rateLimitConf, sysCfg.TurnstileCheckEnabled, sysCfg.TurnstileSecretKey,
 	)
 
 	// Create router with handlers
-	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, cfg.Theme)
-	var port = env.Int("PORT", 1337)
+	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, cfg.Theme, sysCfg.FrontendBaseURL)
+	var port = sysCfg.Port
 	log.Printf("server started on http://localhost:%d", port)
 
 	// 启动服务
@@ -221,7 +240,7 @@ func main() {
 	}()
 
 	// 等待平滑退出
-	shutdown(server, time.Duration(env.Int("GRACEFUL_WAIT", 5))*time.Second)
+	shutdown(server, time.Duration(sysCfg.GracefulWait)*time.Second)
 }
 
 func shutdown(server *http.Server, gracefulWait time.Duration) {
@@ -266,97 +285,94 @@ func shutdown(server *http.Server, gracefulWait time.Duration) {
 	}
 }
 
-func initAppConfig() *config.AppConfig {
+func initAppConfig(sysCfg *config.SystemConfig) *config.AppConfig {
 	return &config.AppConfig{
-		SystemName:                     config.SystemName,
-		ServerAddress:                  config.ServerAddress,
-		Footer:                         config.Footer,
-		Logo:                           config.Logo,
-		TopUpLink:                      config.TopUpLink,
-		ChatLink:                       config.ChatLink,
-		QuotaPerUnit:                   config.QuotaPerUnit,
-		DisplayInCurrencyEnabled:       config.DisplayInCurrencyEnabled,
-		DisplayTokenStatEnabled:        config.DisplayTokenStatEnabled,
-		ItemsPerPage:                   config.ItemsPerPage,
-		MaxRecentItems:                 config.MaxRecentItems,
-		PasswordLoginEnabled:           config.PasswordLoginEnabled,
-		PasswordRegisterEnabled:        config.PasswordRegisterEnabled,
-		EmailVerificationEnabled:       config.EmailVerificationEnabled,
-		GitHubOAuthEnabled:             config.GitHubOAuthEnabled,
-		OidcEnabled:                    config.OidcEnabled,
-		WeChatAuthEnabled:              config.WeChatAuthEnabled,
-		TurnstileCheckEnabled:          config.TurnstileCheckEnabled,
-		RegisterEnabled:                config.RegisterEnabled,
-		EmailDomainRestrictionEnabled:  config.EmailDomainRestrictionEnabled,
-		EmailDomainWhitelist:           config.EmailDomainWhitelist,
-		DebugEnabled:                   config.DebugEnabled,
-		DebugSQLEnabled:                config.DebugSQLEnabled,
-		CacheEnabled:                   config.MemoryCacheEnabled,
-		LogConsumeEnabled:              config.LogConsumeEnabled,
-		SMTPServer:                     config.SMTPServer,
-		SMTPPort:                       config.SMTPPort,
-		SMTPAccount:                    config.SMTPAccount,
-		SMTPFrom:                       config.SMTPFrom,
-		SMTPToken:                      config.SMTPToken,
-		GitHubClientId:                 config.GitHubClientId,
-		GitHubClientSecret:             config.GitHubClientSecret,
-		LarkClientId:                   config.LarkClientId,
-		LarkClientSecret:               config.LarkClientSecret,
-		OidcClientId:                   config.OidcClientId,
-		OidcClientSecret:               config.OidcClientSecret,
-		OidcWellKnown:                  config.OidcWellKnown,
-		OidcAuthorizationEndpoint:      config.OidcAuthorizationEndpoint,
-		OidcTokenEndpoint:              config.OidcTokenEndpoint,
-		OidcUserinfoEndpoint:           config.OidcUserinfoEndpoint,
-		WeChatServerAddress:            config.WeChatServerAddress,
-		WeChatServerToken:              config.WeChatServerToken,
-		WeChatAccountQRCodeImageURL:    config.WeChatAccountQRCodeImageURL,
-		MessagePusherAddress:           config.MessagePusherAddress,
-		MessagePusherToken:             config.MessagePusherToken,
-		TurnstileSiteKey:               config.TurnstileSiteKey,
-		TurnstileSecretKey:             config.TurnstileSecretKey,
-		QuotaForNewUser:                config.QuotaForNewUser,
-		QuotaForInviter:                config.QuotaForInviter,
-		QuotaForInvitee:                config.QuotaForInvitee,
-		ChannelDisableThreshold:        config.ChannelDisableThreshold,
-		AutomaticDisableChannelEnabled: config.AutomaticDisableChannelEnabled,
-		AutomaticEnableChannelEnabled:  config.AutomaticEnableChannelEnabled,
-		QuotaRemindThreshold:           config.QuotaRemindThreshold,
-		PreConsumedQuota:               config.PreConsumedQuota,
-		ApproximateTokenEnabled:        config.ApproximateTokenEnabled,
-		RetryTimes:                     config.RetryTimes,
-		RequestInterval:                config.RequestInterval,
-		SyncFrequency:                  config.SyncFrequency,
-		BatchUpdateEnabled:             config.BatchUpdateEnabled,
-		BatchUpdateInterval:            config.BatchUpdateInterval,
-		Theme:                          config.Theme,
-		ValidThemes:                    config.ValidThemes,
-		GlobalWebRateLimitNum:          config.GlobalWebRateLimitNum,
-		GlobalWebRateLimitDuration:     config.GlobalWebRateLimitDuration,
-		GlobalApiRateLimitNum:          config.GlobalApiRateLimitNum,
-		GlobalApiRateLimitDuration:     config.GlobalApiRateLimitDuration,
-		CriticalRateLimitNum:           config.CriticalRateLimitNum,
-		CriticalRateLimitDuration:      config.CriticalRateLimitDuration,
-		DownloadRateLimitNum:           config.DownloadRateLimitNum,
-		DownloadRateLimitDuration:      config.DownloadRateLimitDuration,
-		UploadRateLimitNum:             config.UploadRateLimitNum,
-		UploadRateLimitDuration:        config.UploadRateLimitDuration,
-		RateLimitKeyExpirationDuration: config.RateLimitKeyExpirationDuration,
-		EnableMetric:                   config.EnableMetric,
-		MetricQueueSize:                config.MetricQueueSize,
-		MetricSuccessRateThreshold:     config.MetricSuccessRateThreshold,
-		MetricSuccessChanSize:          config.MetricSuccessChanSize,
-		MetricFailChanSize:             config.MetricFailChanSize,
-		RelayTimeout:                   config.RelayTimeout,
-		UserContentRequestProxy:        config.UserContentRequestProxy,
-		UserContentRequestTimeout:      config.UserContentRequestTimeout,
-		RelayProxy:                     config.RelayProxy,
-		EnforceIncludeUsage:            config.EnforceIncludeUsage,
-		TestPrompt:                     config.TestPrompt,
-		InitialRootToken:               config.InitialRootToken,
-		InitialRootAccessToken:         config.InitialRootAccessToken,
-		GeminiVersion:                  config.GeminiVersion,
-		GeminiSafetySetting:            config.GeminiSafetySetting,
+		SystemName:                     sysCfg.SystemName,
+		ServerAddress:                  sysCfg.ServerAddress,
+		Footer:                         sysCfg.Footer,
+		Logo:                           sysCfg.Logo,
+		TopUpLink:                      sysCfg.TopUpLink,
+		ChatLink:                       sysCfg.ChatLink,
+		QuotaPerUnit:                   sysCfg.QuotaPerUnit,
+		DisplayInCurrencyEnabled:       sysCfg.DisplayInCurrencyEnabled,
+		DisplayTokenStatEnabled:        sysCfg.DisplayTokenStatEnabled,
+		ItemsPerPage:                   sysCfg.ItemsPerPage,
+		MaxRecentItems:                 sysCfg.MaxRecentItems,
+		PasswordLoginEnabled:           sysCfg.PasswordLoginEnabled,
+		PasswordRegisterEnabled:        sysCfg.PasswordRegisterEnabled,
+		EmailVerificationEnabled:       sysCfg.EmailVerificationEnabled,
+		GitHubOAuthEnabled:             sysCfg.GitHubOAuthEnabled,
+		OidcEnabled:                    sysCfg.OidcEnabled,
+		WeChatAuthEnabled:              sysCfg.WeChatAuthEnabled,
+		TurnstileCheckEnabled:          sysCfg.TurnstileCheckEnabled,
+		RegisterEnabled:                sysCfg.RegisterEnabled,
+		EmailDomainRestrictionEnabled:  sysCfg.EmailDomainRestrictionEnabled,
+		EmailDomainWhitelist:           sysCfg.EmailDomainWhitelist,
+		DebugSQLEnabled:                sysCfg.DebugSQLEnabled,
+		CacheEnabled:                   sysCfg.MemoryCacheEnabled,
+		LogConsumeEnabled:              sysCfg.LogConsumeEnabled,
+		SMTPServer:                     sysCfg.SMTPServer,
+		SMTPPort:                       sysCfg.SMTPPort,
+		SMTPAccount:                    sysCfg.SMTPAccount,
+		SMTPFrom:                       sysCfg.SMTPFrom,
+		SMTPToken:                      sysCfg.SMTPToken,
+		GitHubClientId:                 sysCfg.GitHubClientId,
+		GitHubClientSecret:             sysCfg.GitHubClientSecret,
+		LarkClientId:                   sysCfg.LarkClientId,
+		LarkClientSecret:               sysCfg.LarkClientSecret,
+		OidcClientId:                   sysCfg.OidcClientId,
+		OidcClientSecret:               sysCfg.OidcClientSecret,
+		OidcWellKnown:                  sysCfg.OidcWellKnown,
+		OidcAuthorizationEndpoint:      sysCfg.OidcAuthorizationEndpoint,
+		OidcTokenEndpoint:              sysCfg.OidcTokenEndpoint,
+		OidcUserinfoEndpoint:           sysCfg.OidcUserinfoEndpoint,
+		WeChatServerAddress:            sysCfg.WeChatServerAddress,
+		WeChatServerToken:              sysCfg.WeChatServerToken,
+		WeChatAccountQRCodeImageURL:    sysCfg.WeChatAccountQRCodeImageURL,
+		MessagePusherAddress:           sysCfg.MessagePusherAddress,
+		MessagePusherToken:             sysCfg.MessagePusherToken,
+		TurnstileSiteKey:               sysCfg.TurnstileSiteKey,
+		TurnstileSecretKey:             sysCfg.TurnstileSecretKey,
+		QuotaForNewUser:                sysCfg.QuotaForNewUser,
+		QuotaForInviter:                sysCfg.QuotaForInviter,
+		QuotaForInvitee:                sysCfg.QuotaForInvitee,
+		ChannelDisableThreshold:        sysCfg.ChannelDisableThreshold,
+		AutomaticDisableChannelEnabled: sysCfg.AutomaticDisableChannelEnabled,
+		AutomaticEnableChannelEnabled:  sysCfg.AutomaticEnableChannelEnabled,
+		QuotaRemindThreshold:           sysCfg.QuotaRemindThreshold,
+		PreConsumedQuota:               sysCfg.PreConsumedQuota,
+		ApproximateTokenEnabled:        sysCfg.ApproximateTokenEnabled,
+		RetryTimes:                     sysCfg.RetryTimes,
+		RequestInterval:                sysCfg.RequestInterval,
+		SyncFrequency:                  sysCfg.SyncFrequency,
+		BatchUpdateEnabled:             sysCfg.BatchUpdateEnabled,
+		BatchUpdateInterval:            sysCfg.BatchUpdateInterval,
+		Theme:                          sysCfg.Theme,
+		ValidThemes:                    sysCfg.ValidThemes,
+		GlobalWebRateLimitNum:          sysCfg.GlobalWebRateLimitNum,
+		GlobalWebRateLimitDuration:     sysCfg.GlobalWebRateLimitDuration,
+		GlobalApiRateLimitNum:          sysCfg.GlobalApiRateLimitNum,
+		GlobalApiRateLimitDuration:     sysCfg.GlobalApiRateLimitDuration,
+		CriticalRateLimitNum:           sysCfg.CriticalRateLimitNum,
+		CriticalRateLimitDuration:      sysCfg.CriticalRateLimitDuration,
+		DownloadRateLimitNum:           sysCfg.DownloadRateLimitNum,
+		DownloadRateLimitDuration:      sysCfg.DownloadRateLimitDuration,
+		UploadRateLimitNum:             sysCfg.UploadRateLimitNum,
+		UploadRateLimitDuration:        sysCfg.UploadRateLimitDuration,
+		RateLimitKeyExpirationDuration: sysCfg.RateLimitKeyExpirationDuration,
+		EnableMetric:                   sysCfg.EnableMetric,
+		MetricQueueSize:                sysCfg.MetricQueueSize,
+		MetricSuccessRateThreshold:     sysCfg.MetricSuccessRateThreshold,
+		MetricSuccessChanSize:          sysCfg.MetricSuccessChanSize,
+		MetricFailChanSize:             sysCfg.MetricFailChanSize,
+		RelayTimeout:                   sysCfg.RelayTimeout,
+		UserContentRequestProxy:        sysCfg.UserContentRequestProxy,
+		UserContentRequestTimeout:      sysCfg.UserContentRequestTimeout,
+		RelayProxy:                     sysCfg.RelayProxy,
+		EnforceIncludeUsage:            sysCfg.EnforceIncludeUsage,
+		TestPrompt:                     sysCfg.TestPrompt,
+		InitialRootToken:               sysCfg.InitialRootToken,
+		InitialRootAccessToken:         sysCfg.InitialRootAccessToken,
 	}
 }
 
@@ -420,6 +436,17 @@ func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
 			OidcUserinfoEndpoint:          cfg.OidcUserinfoEndpoint,
 			EmailDomainRestrictionEnabled: cfg.EmailDomainRestrictionEnabled,
 			EmailDomainWhitelist:          cfg.EmailDomainWhitelist,
+			SMTPConfig: message.SMTPConfig{
+				Server:  cfg.SMTPServer,
+				Port:    cfg.SMTPPort,
+				Account: cfg.SMTPAccount,
+				From:    cfg.SMTPFrom,
+				Token:   cfg.SMTPToken,
+			},
+			MessagePusherConfig: message.MessagePusherConfig{
+				Address: cfg.MessagePusherAddress,
+				Token:   cfg.MessagePusherToken,
+			},
 		},
 		ItemsPerPage:                   cfg.ItemsPerPage,
 		QuotaPerUnit:                   cfg.QuotaPerUnit,
@@ -429,8 +456,10 @@ func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
 		AutomaticDisableChannelEnabled: cfg.AutomaticDisableChannelEnabled,
 		RequestInterval:                cfg.RequestInterval,
 		DisplayTokenStatEnabled:        cfg.DisplayTokenStatEnabled,
-		DebugEnabled:                   cfg.DebugEnabled,
 		RetryTimes:                     cfg.RetryTimes,
+		PreConsumedQuota:               cfg.PreConsumedQuota,
+		EnforceIncludeUsage:            cfg.EnforceIncludeUsage,
+		EnableMetric:                   cfg.EnableMetric,
 		ValidThemes:                    cfg.ValidThemes,
 		GithubClientId:                 cfg.GitHubClientId,
 		EmailDomainWhitelist:           cfg.EmailDomainWhitelist,
@@ -441,7 +470,7 @@ func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
 	return handlerParams
 }
 
-func CreateRootAccountIfNeed(db *gorm.DB) error {
+func CreateRootAccountIfNeed(db *gorm.DB, sysCfg *config.SystemConfig) error {
 	var user entity.User
 	// if user.Status != util.UserStatusEnabled {
 	if err := db.First(&user).Error; err != nil {
@@ -452,8 +481,8 @@ func CreateRootAccountIfNeed(db *gorm.DB) error {
 		}
 
 		accessToken := utils.UUID()
-		if config.InitialRootAccessToken != "" {
-			accessToken = config.InitialRootAccessToken
+		if sysCfg.InitialRootAccessToken != "" {
+			accessToken = sysCfg.InitialRootAccessToken
 		}
 		rootUser := entity.User{
 			Username:    "root",
@@ -465,9 +494,9 @@ func CreateRootAccountIfNeed(db *gorm.DB) error {
 			Quota:       500000000000000,
 		}
 		db.Create(&rootUser)
-		if config.InitialRootToken != "" {
+		if sysCfg.InitialRootToken != "" {
 			slog.Info("creating initial root token as requested")
-			encryptedKey, err := crypto.Encrypt(config.InitialRootToken)
+			encryptedKey, err := crypto.Encrypt(sysCfg.InitialRootToken)
 			if err != nil {
 				return fmt.Errorf("failed to encrypt initial root token: %w", err)
 			}
@@ -475,7 +504,7 @@ func CreateRootAccountIfNeed(db *gorm.DB) error {
 				Id:             1,
 				UserId:         rootUser.Id,
 				Key:            encryptedKey,
-				KeyHash:        crypto.KeyHash(config.InitialRootToken),
+				KeyHash:        crypto.KeyHash(sysCfg.InitialRootToken),
 				Status:         entity.TokenStatusEnabled,
 				Name:           "Initial Root Token",
 				CreatedTime:    utils.GetTimestamp(),

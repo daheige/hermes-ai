@@ -4,12 +4,11 @@ import (
 	"net/http"
 	"strings"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/relay/model"
 )
 
-func ShouldDisableChannel(err *model.Error, statusCode int) bool {
-	if !config.AutomaticDisableChannelEnabled {
+func ShouldDisableChannel(enabled bool, err *model.Error, statusCode int) bool {
+	if !enabled {
 		return false
 	}
 	if err == nil {
@@ -43,8 +42,8 @@ func ShouldDisableChannel(err *model.Error, statusCode int) bool {
 	return false
 }
 
-func ShouldEnableChannel(err error, openAIErr *model.Error) bool {
-	if !config.AutomaticEnableChannelEnabled {
+func ShouldEnableChannel(enabled bool, err error, openAIErr *model.Error) bool {
+	if !enabled {
 		return false
 	}
 	if err != nil {

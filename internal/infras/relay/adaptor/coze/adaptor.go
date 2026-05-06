@@ -15,7 +15,8 @@ import (
 )
 
 type Adaptor struct {
-	meta *meta.Meta
+	meta         *meta.Meta
+	TokenCounter *openai.TokenCounter
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
@@ -59,7 +60,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 		err, responseText = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
 	}
 	if responseText != nil {
-		usage = openai.ResponseText2Usage(*responseText, meta.ActualModelName, meta.PromptTokens)
+		usage = a.TokenCounter.ResponseText2Usage(*responseText, meta.ActualModelName, meta.PromptTokens)
 	} else {
 		usage = &model2.Usage{}
 	}

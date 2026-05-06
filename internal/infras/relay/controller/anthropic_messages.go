@@ -25,7 +25,7 @@ import (
 	model2 "hermes-ai/internal/infras/relay/model"
 )
 
-func RelayAnthropicMessagesHelper(c *gin.Context) *model2.ErrorWithStatusCode {
+func RelayAnthropicMessagesHelper(c *gin.Context, preConsumedQuota int64, factory *relay.AdaptorFactory, tc *openai.TokenCounter) *model2.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	metaInfo := meta.GetByContext(c)
 
@@ -48,7 +48,7 @@ func RelayAnthropicMessagesHelper(c *gin.Context) *model2.ErrorWithStatusCode {
 	groupRatio := ratio2.GetGroupRatio(metaInfo.Group)
 	ratio := modelRatio * groupRatio
 
-	promptTokens := countAnthropicPromptTokens(&anthropicRequest, metaInfo.ActualModelName)
+	promptTokens := countAnthropicPromptTokens(&anthropicRequest, metaInfo.ActualModelName, tc)
 	metaInfo.PromptTokens = promptTokens
 
 	maxTokens := anthropicRequest.MaxTokens
@@ -60,12 +60,12 @@ func RelayAnthropicMessagesHelper(c *gin.Context) *model2.ErrorWithStatusCode {
 		MaxTokens: maxTokens,
 		Stream:    anthropicRequest.Stream,
 	}
-	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, ratio, metaInfo)
+	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, ratio, metaInfo, preConsumedQuota)
 	if bizErr != nil {
 		return bizErr
 	}
 
-	adaptor := relay.GetAdaptor(metaInfo.APIType)
+	adaptor := factory.GetAdaptor(metaInfo.APIType)
 	if adaptor == nil {
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, metaInfo.TokenId)
 		return openai.ErrorWrapper(errors.New("invalid api type"), "invalid_api_type", http.StatusBadRequest)
@@ -117,22 +117,22 @@ func RelayAnthropicMessagesHelper(c *gin.Context) *model2.ErrorWithStatusCode {
 	return nil
 }
 
-func countAnthropicPromptTokens(request *anthropic.Request, modelName string) int {
+func countAnthropicPromptTokens(request *anthropic.Request, modelName string, tc *openai.TokenCounter) int {
 	tokenNum := 0
 	for _, message := range request.Messages {
-		tokenNum += openai.CountTokenText(message.Role, modelName)
+		tokenNum += tc.CountTokenText(message.Role, modelName)
 		contents, err := message.GetContentItems()
 		if err != nil {
 			continue
 		}
 		for _, content := range contents {
 			if content.Type == "text" {
-				tokenNum += openai.CountTokenText(content.Text, modelName)
+				tokenNum += tc.CountTokenText(content.Text, modelName)
 			}
 		}
 	}
 	if !request.System.IsEmpty() {
-		tokenNum += openai.CountTokenText(request.System.String(), modelName)
+		tokenNum += tc.CountTokenText(request.System.String(), modelName)
 	}
 	return tokenNum
 }

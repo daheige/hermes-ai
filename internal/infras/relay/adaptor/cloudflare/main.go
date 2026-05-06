@@ -27,7 +27,7 @@ func ConvertCompletionsRequest(textRequest model2.GeneralOpenAIRequest) *Request
 	}
 }
 
-func StreamHandler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model2.ErrorWithStatusCode, *model2.Usage) {
+func StreamHandler(c *gin.Context, resp *http.Response, promptTokens int, modelName string, tc *openai2.TokenCounter) (*model2.ErrorWithStatusCode, *model2.Usage) {
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 
@@ -77,11 +77,11 @@ func StreamHandler(c *gin.Context, resp *http.Response, promptTokens int, modelN
 		return openai2.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
 	}
 
-	usage := openai2.ResponseText2Usage(responseText, responseModel, promptTokens)
+	usage := tc.ResponseText2Usage(responseText, responseModel, promptTokens)
 	return nil, usage
 }
 
-func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model2.ErrorWithStatusCode, *model2.Usage) {
+func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string, tc *openai2.TokenCounter) (*model2.ErrorWithStatusCode, *model2.Usage) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return openai2.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
@@ -100,7 +100,7 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	for _, v := range response.Choices {
 		responseText += v.Message.Content.(string)
 	}
-	usage := openai2.ResponseText2Usage(responseText, modelName, promptTokens)
+	usage := tc.ResponseText2Usage(responseText, modelName, promptTokens)
 	response.Usage = *usage
 	response.Id = ginzo.GetResponseID(c)
 	jsonResponse, err := json.Marshal(response)

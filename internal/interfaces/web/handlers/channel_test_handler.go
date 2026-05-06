@@ -22,7 +22,6 @@ import (
 	"hermes-ai/internal/domain/entity"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/ginzo"
-	"hermes-ai/internal/infras/message"
 	monitor2 "hermes-ai/internal/infras/monitor"
 	"hermes-ai/internal/infras/relay"
 	"hermes-ai/internal/infras/relay/adaptor/openai"
@@ -36,11 +35,12 @@ import (
 
 // ChannelTestHandler 渠道测试处理器
 type ChannelTestHandler struct {
-	service                     *application.ChannelService
-	logService                  *application.LogService
-	userService                 *application.UserService
-	channelMonitor              *monitor2.ChannelMonitor
-	testPrompt                  string
+	service                        *application.ChannelService
+	logService                     *application.LogService
+	userService                    *application.UserService
+	channelMonitor                 *monitor2.ChannelMonitor
+	adaptorFactory                 *relay.AdaptorFactory
+	testPrompt                     string
 	channelDisableThreshold        float64
 	automaticDisableChannelEnabled bool
 	requestInterval                time.Duration
@@ -50,12 +50,14 @@ type ChannelTestHandler struct {
 func NewChannelTestHandler(service *application.ChannelService,
 	logService *application.LogService,
 	userService *application.UserService, channelMonitor *monitor2.ChannelMonitor,
+	adaptorFactory *relay.AdaptorFactory,
 	testPrompt string, channelDisableThreshold float64, automaticDisableChannelEnabled bool, requestInterval time.Duration) *ChannelTestHandler {
 	return &ChannelTestHandler{
 		service:                        service,
 		logService:                     logService,
 		userService:                    userService,
 		channelMonitor:                 channelMonitor,
+		adaptorFactory:                 adaptorFactory,
 		testPrompt:                     testPrompt,
 		channelDisableThreshold:        channelDisableThreshold,
 		automaticDisableChannelEnabled: automaticDisableChannelEnabled,
@@ -113,7 +115,7 @@ func (h *ChannelTestHandler) testChannel(ctx context.Context, channel *entity.Ch
 	ginzo.SetupContextForSelectedChannel(c, channel, "")
 	meta := meta.GetByContext(c)
 	apiType := channeltype.ToAPIType(channel.Type)
-	adaptor := relay.GetAdaptor(apiType)
+	adaptor := h.adaptorFactory.GetAdaptor(apiType)
 	if adaptor == nil {
 		return "", fmt.Errorf("invalid api type: %d, adaptor is nil", apiType), nil
 	}
@@ -273,13 +275,16 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 				if h.automaticDisableChannelEnabled {
 					h.channelMonitor.DisableChannel(channel.Id, channel.Name, err.Error())
 				} else {
-					_ = message.Notify(message.ByAll, fmt.Sprintf("渠道 %s （%d）测试超时", channel.Name, channel.Id), "", err.Error())
+					h.channelMonitor.NotifyRootUser(
+						fmt.Sprintf("渠道 %s （%d）测试超时", channel.Name, channel.Id),
+						err.Error(),
+					)
 				}
 			}
-			if isChannelEnabled && monitor2.ShouldDisableChannel(openaiErr, -1) {
+			if isChannelEnabled && monitor2.ShouldDisableChannel(h.automaticDisableChannelEnabled, openaiErr, -1) {
 				h.channelMonitor.DisableChannel(channel.Id, channel.Name, err.Error())
 			}
-			if !isChannelEnabled && monitor2.ShouldEnableChannel(err, openaiErr) {
+			if !isChannelEnabled && monitor2.ShouldEnableChannel(h.automaticDisableChannelEnabled, err, openaiErr) {
 				h.channelMonitor.EnableChannel(channel.Id, channel.Name)
 			}
 
@@ -290,10 +295,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 		testAllChannelsRunning = false
 		testAllChannelsLock.Unlock()
 		if notify {
-			err := message.Notify(message.ByAll, "渠道测试完成", "", "渠道测试完成，如果没有收到禁用通知，说明所有渠道都正常")
-			if err != nil {
-				slog.Error(fmt.Sprintf("failed to send email: %s", err.Error()))
-			}
+			h.channelMonitor.NotifyRootUser("渠道测试完成", "渠道测试完成，如果没有收到禁用通知，说明所有渠道都正常")
 		}
 	}()
 	return nil

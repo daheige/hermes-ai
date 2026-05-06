@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/logger"
 	"hermes-ai/internal/infras/relay"
 	"hermes-ai/internal/infras/relay/adaptor"
@@ -23,7 +22,7 @@ import (
 	model2 "hermes-ai/internal/infras/relay/model"
 )
 
-func RelayTextHelper(c *gin.Context) *model2.ErrorWithStatusCode {
+func RelayTextHelper(c *gin.Context, preConsumedQuota int64, enforceIncludeUsage bool, factory *relay.AdaptorFactory) *model2.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	meta := meta.GetByContext(c)
 	// get & validate textRequest
@@ -47,22 +46,22 @@ func RelayTextHelper(c *gin.Context) *model2.ErrorWithStatusCode {
 	groupRatio := ratio2.GetGroupRatio(meta.Group)
 	ratio := modelRatio * groupRatio
 	// pre-consume quota
-	promptTokens := getPromptTokens(textRequest, meta.Mode)
+	promptTokens := getPromptTokens(textRequest, meta.Mode, factory.TokenCounter())
 	meta.PromptTokens = promptTokens
-	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, ratio, meta)
+	preConsumedQuota, bizErr := preConsumeQuota(ctx, textRequest, promptTokens, ratio, meta, preConsumedQuota)
 	if bizErr != nil {
 		slog.With("request_id", logger.GetRequestID(ctx)).Error(fmt.Sprintf("preConsumeQuota failed: %+v", *bizErr))
 		return bizErr
 	}
 
-	adaptor := relay.GetAdaptor(meta.APIType)
+	adaptor := factory.GetAdaptor(meta.APIType)
 	if adaptor == nil {
 		return openai.ErrorWrapper(fmt.Errorf("invalid api type: %d", meta.APIType), "invalid_api_type", http.StatusBadRequest)
 	}
 	adaptor.Init(meta)
 
 	// get request body
-	requestBody, err := getRequestBody(c, meta, textRequest, adaptor)
+	requestBody, err := getRequestBody(c, meta, textRequest, adaptor, enforceIncludeUsage)
 	if err != nil {
 		return openai.ErrorWrapper(err, "convert_request_failed", http.StatusInternalServerError)
 	}
@@ -103,8 +102,8 @@ func RelayTextHelper(c *gin.Context) *model2.ErrorWithStatusCode {
 	return nil
 }
 
-func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model2.GeneralOpenAIRequest, adaptor adaptor.Adaptor) (io.Reader, error) {
-	if !config.EnforceIncludeUsage &&
+func getRequestBody(c *gin.Context, meta *meta.Meta, textRequest *model2.GeneralOpenAIRequest, adaptor adaptor.Adaptor, enforceIncludeUsage bool) (io.Reader, error) {
+	if !enforceIncludeUsage &&
 		meta.APIType == apitype.OpenAI &&
 		meta.OriginModelName == meta.ActualModelName &&
 		meta.ChannelType != channeltype.Baichuan &&

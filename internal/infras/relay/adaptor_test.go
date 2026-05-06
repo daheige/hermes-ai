@@ -10,8 +10,9 @@ import (
 
 func TestGetAdaptor(t *testing.T) {
 	Convey("get adaptor", t, func() {
+		factory := NewAdaptorFactory(nil)
 		for i := 0; i < apitype.Dummy; i++ {
-			a := GetAdaptor(i)
+			a := factory.GetAdaptor(i)
 			So(a, ShouldNotBeNil)
 		}
 	})

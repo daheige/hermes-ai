@@ -13,7 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/httpclient"
@@ -27,7 +26,7 @@ import (
 	"hermes-ai/internal/infras/relay/services"
 )
 
-func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatusCode {
+func RelayAudioHelper(c *gin.Context, relayMode int, preConsumedQuota int64, tc *openai2.TokenCounter) *relaymodel.ErrorWithStatusCode {
 	metaEntry := meta.GetByContext(c)
 	audioModel := "whisper-1"
 
@@ -57,13 +56,12 @@ func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 	groupRatio := ratio2.GetGroupRatio(group)
 	ratio := modelRatio * groupRatio
 	var quota int64
-	var preConsumedQuota int64
 	switch relayMode {
 	case relaymode.AudioSpeech:
 		preConsumedQuota = int64(float64(len(ttsRequest.Input)) * ratio)
 		quota = preConsumedQuota
 	default:
-		preConsumedQuota = int64(float64(config.PreConsumedQuota) * ratio)
+		preConsumedQuota = int64(float64(preConsumedQuota) * ratio)
 	}
 	userQuota, err := services.UserService.CacheGetUserQuota(c.Request.Context(), userId)
 	if err != nil {
@@ -204,7 +202,7 @@ func RelayAudioHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatus
 		if err != nil {
 			return openai2.ErrorWrapper(err, "get_text_from_body_err", http.StatusInternalServerError)
 		}
-		quota = int64(openai2.CountTokenText(text, audioModel))
+		quota = int64(tc.CountTokenText(text, audioModel))
 		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	}
 	if resp.StatusCode != http.StatusOK {

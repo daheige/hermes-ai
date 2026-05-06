@@ -11,6 +11,7 @@ import (
 	"hermes-ai/internal/infras/batchupdater"
 	"hermes-ai/internal/infras/cache"
 	"hermes-ai/internal/infras/config"
+	"hermes-ai/internal/infras/message"
 	"hermes-ai/internal/infras/persistence"
 )
 
@@ -103,6 +104,20 @@ func InitServices(repos *Repositories, cfg *config.AppConfig) *Services {
 			BatchUpdateEnabled:   cfg.BatchUpdateEnabled,
 			QuotaRemindThreshold: cfg.QuotaRemindThreshold,
 			ServerAddress:        cfg.ServerAddress,
+			NotifierConfig: application.NotifierConfig{
+				SystemName: cfg.SystemName,
+				SMTPConfig: message.SMTPConfig{
+					Server:  cfg.SMTPServer,
+					Port:    cfg.SMTPPort,
+					Account: cfg.SMTPAccount,
+					From:    cfg.SMTPFrom,
+					Token:   cfg.SMTPToken,
+				},
+				MessagePusherConfig: message.MessagePusherConfig{
+					Address: cfg.MessagePusherAddress,
+					Token:   cfg.MessagePusherToken,
+				},
+			},
 		},
 	)
 

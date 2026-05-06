@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"hermes-ai/internal/infras/relay/adaptor/openai"
 	"hermes-ai/internal/infras/relay/adaptor/vertexai/claude"
 	gemini "hermes-ai/internal/infras/relay/adaptor/vertexai/gemini"
 	"hermes-ai/internal/infras/relay/meta"
@@ -38,13 +39,13 @@ type innerAIAdapter interface {
 	DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model2.Usage, err *model2.ErrorWithStatusCode)
 }
 
-func GetAdaptor(model string) innerAIAdapter {
+func GetAdaptor(model string, tc *openai.TokenCounter, safetySetting string) innerAIAdapter {
 	adaptorType := modelMapping[model]
 	switch adaptorType {
 	case VerterAIClaude:
 		return &vertexai.Adaptor{}
 	case VerterAIGemini:
-		return &gemini.Adaptor{}
+		return &gemini.Adaptor{TokenCounter: tc, SafetySetting: safetySetting}
 	default:
 		return nil
 	}

@@ -29,6 +29,7 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 	}
 	_ = c.Request.Body.Close()
 	c.Set(ctxkey.KeyRequestBody, requestBody)
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody.([]byte)))
 	return requestBody.([]byte), nil
 }
 

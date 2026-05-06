@@ -122,7 +122,4 @@ type AppConfig struct {
 
 	InitialRootToken       string
 	InitialRootAccessToken string
-
-	GeminiVersion       string
-	GeminiSafetySetting string
 }

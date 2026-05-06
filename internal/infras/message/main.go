@@ -1,10 +1,6 @@
 package message
 
-import (
-	"fmt"
-
-	"hermes-ai/internal/infras/config"
-)
+import "fmt"
 
 const (
 	ByAll           = "all"
@@ -12,12 +8,12 @@ const (
 	ByMessagePusher = "message_pusher"
 )
 
-func Notify(by string, title string, description string, content string) error {
+func Notify(rootEmail string, smtpCfg SMTPConfig, pusherCfg MessagePusherConfig, systemName, by, title, description, content string) error {
 	if by == ByEmail {
-		return SendEmail(title, config.RootUserEmail, content)
+		return SendEmail(smtpCfg, systemName, title, rootEmail, content)
 	}
 	if by == ByMessagePusher {
-		return SendMessage(title, description, content)
+		return SendMessagePusher(pusherCfg, title, description, content)
 	}
 	return fmt.Errorf("unknown notify method: %s", by)
 }

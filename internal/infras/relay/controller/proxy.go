@@ -16,11 +16,11 @@ import (
 )
 
 // RelayProxyHelper is a helper function to proxy the request to the upstream service
-func RelayProxyHelper(c *gin.Context, relayMode int) *relaymodel.ErrorWithStatusCode {
+func RelayProxyHelper(c *gin.Context, relayMode int, factory *relay.AdaptorFactory) *relaymodel.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	meta := meta.GetByContext(c)
 
-	adaptor := relay.GetAdaptor(meta.APIType)
+	adaptor := factory.GetAdaptor(meta.APIType)
 	if adaptor == nil {
 		return openai.ErrorWrapper(fmt.Errorf("invalid api type: %d", meta.APIType), "invalid_api_type", http.StatusBadRequest)
 	}

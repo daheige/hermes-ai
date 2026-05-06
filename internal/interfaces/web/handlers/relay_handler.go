@@ -15,42 +15,75 @@ import (
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/logger"
 	monitor2 "hermes-ai/internal/infras/monitor"
+	"hermes-ai/internal/infras/relay"
 	controller2 "hermes-ai/internal/infras/relay/controller"
 	"hermes-ai/internal/infras/relay/model"
 	relaymode2 "hermes-ai/internal/infras/relay/relaymode"
 	"hermes-ai/internal/infras/utils"
 )
 
+// RelayHandlerDeps 转发处理器依赖的外部服务
+type RelayHandlerDeps struct {
+	ChannelService  *application.ChannelService
+	ChannelMonitor  *monitor2.ChannelMonitor
+	AdaptorFactory  *relay.AdaptorFactory
+	MetricCollector *monitor2.MetricCollector
+}
+
+// RelayHandlerConfig 转发处理器配置
+type RelayHandlerConfig struct {
+	RetryTimes                     int
+	PreConsumedQuota               int64
+	EnforceIncludeUsage            bool
+	EnableMetric                   bool
+	AutomaticDisableChannelEnabled bool
+}
+
 // RelayHandler 转发处理器
 type RelayHandler struct {
-	channelService *application.ChannelService
-	channelMonitor *monitor2.ChannelMonitor
-	debugEnabled   bool
-	retryTimes     int
+	channelService                 *application.ChannelService
+	channelMonitor                 *monitor2.ChannelMonitor
+	adaptorFactory                 *relay.AdaptorFactory
+	metricCollector                *monitor2.MetricCollector
+	retryTimes                     int
+	preConsumedQuota               int64
+	enforceIncludeUsage            bool
+	enableMetric                   bool
+	automaticDisableChannelEnabled bool
 }
 
 // NewRelayHandler 创建转发处理器
-func NewRelayHandler(channelService *application.ChannelService, monitor *monitor2.ChannelMonitor, debugEnabled bool, retryTimes int) *RelayHandler {
-	return &RelayHandler{channelService: channelService, channelMonitor: monitor, debugEnabled: debugEnabled, retryTimes: retryTimes}
+func NewRelayHandler(deps RelayHandlerDeps, cfg RelayHandlerConfig) *RelayHandler {
+	return &RelayHandler{
+		channelService:                 deps.ChannelService,
+		channelMonitor:                 deps.ChannelMonitor,
+		adaptorFactory:                 deps.AdaptorFactory,
+		metricCollector:                deps.MetricCollector,
+		retryTimes:                     cfg.RetryTimes,
+		preConsumedQuota:               cfg.PreConsumedQuota,
+		enforceIncludeUsage:            cfg.EnforceIncludeUsage,
+		enableMetric:                   cfg.EnableMetric,
+		automaticDisableChannelEnabled: cfg.AutomaticDisableChannelEnabled,
+	}
 }
 
 func (h *RelayHandler) relayHelper(c *gin.Context, relayMode int) *model.ErrorWithStatusCode {
 	var err *model.ErrorWithStatusCode
 	switch relayMode {
 	case relaymode2.ImagesGenerations:
-		err = controller2.RelayImageHelper(c, relayMode)
+		err = controller2.RelayImageHelper(c, relayMode, h.adaptorFactory)
 	case relaymode2.AudioSpeech:
 		fallthrough
 	case relaymode2.AudioTranslation:
 		fallthrough
 	case relaymode2.AudioTranscription:
-		err = controller2.RelayAudioHelper(c, relayMode)
+		err = controller2.RelayAudioHelper(c, relayMode, h.preConsumedQuota, h.adaptorFactory.TokenCounter())
 	case relaymode2.Proxy:
-		err = controller2.RelayProxyHelper(c, relayMode)
+		err = controller2.RelayProxyHelper(c, relayMode, h.adaptorFactory)
 	case relaymode2.AnthropicMessages:
-		err = controller2.RelayAnthropicMessagesHelper(c)
+		err = controller2.RelayAnthropicMessagesHelper(c, h.preConsumedQuota, h.adaptorFactory, h.adaptorFactory.TokenCounter())
 	default:
-		err = controller2.RelayTextHelper(c)
+		err = controller2.RelayTextHelper(c, h.preConsumedQuota, h.enforceIncludeUsage, h.adaptorFactory)
 	}
 	return err
 }
@@ -59,17 +92,17 @@ func (h *RelayHandler) relayHelper(c *gin.Context, relayMode int) *model.ErrorWi
 func (h *RelayHandler) Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	relayMode := relaymode2.GetByPath(c.Request.URL.Path)
-	if h.debugEnabled {
-		requestBody, _ := ginzo.GetRequestBody(c)
-		slog.With("request_id", logger.GetRequestID(ctx)).
-			Debug(fmt.Sprintf("request body: %s", string(requestBody)))
-	}
+	requestBody, _ := ginzo.GetRequestBody(c)
+	slog.With("request_id", logger.GetRequestID(ctx)).
+		Debug(fmt.Sprintf("request body: %s", string(requestBody)))
 	channelId := c.GetInt(ctxkey.ChannelId)
 	userId := c.GetInt(ctxkey.Id)
 	// log.Println("relayMode:", relayMode)
 	bizErr := h.relayHelper(c, relayMode)
 	if bizErr == nil {
-		monitor2.Emit(channelId, true)
+		if h.metricCollector != nil {
+			h.metricCollector.Emit(channelId, true)
+		}
 		return
 	}
 	lastFailedChannelId := channelId
@@ -143,10 +176,10 @@ func (h *RelayHandler) shouldRetry(c *gin.Context, statusCode int) bool {
 func (h *RelayHandler) processChannelRelayError(ctx context.Context, userId int, channelId int, channelName string, err model.ErrorWithStatusCode) {
 	slog.With("request_id", logger.GetRequestID(ctx)).
 		Error(fmt.Sprintf("relay error (channel id %d, user id: %d): %s", channelId, userId, err.Message))
-	if monitor2.ShouldDisableChannel(&err.Error, err.StatusCode) {
+	if monitor2.ShouldDisableChannel(h.automaticDisableChannelEnabled, &err.Error, err.StatusCode) {
 		h.channelMonitor.DisableChannel(channelId, channelName, err.Message)
-	} else {
-		monitor2.Emit(channelId, false)
+	} else if h.metricCollector != nil {
+		h.metricCollector.Emit(channelId, false)
 	}
 }
 

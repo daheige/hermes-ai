@@ -1,13 +1,9 @@
 package message
 
-import (
-	"fmt"
-
-	"hermes-ai/internal/infras/config"
-)
+import "fmt"
 
 // EmailTemplate 生成美观的 HTML 邮件内容
-func EmailTemplate(title, content string) string {
+func EmailTemplate(systemName, title, content string) string {
 	return fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -30,5 +26,5 @@ func EmailTemplate(title, content string) string {
     </div>
 </body>
 </html>
-`, title, content, config.SystemName)
+`, title, content, systemName)
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"hermes-ai/internal/infras/config"
 	channelhelper "hermes-ai/internal/infras/relay/adaptor"
 	"hermes-ai/internal/infras/relay/adaptor/openai"
 	"hermes-ai/internal/infras/relay/meta"
@@ -19,13 +18,23 @@ import (
 )
 
 type Adaptor struct {
+	Version       string
+	SafetySetting string
+	TokenCounter  *openai.TokenCounter
+}
+
+func NewAdaptor(version, safetySetting string, tc *openai.TokenCounter) *Adaptor {
+	return &Adaptor{Version: version, SafetySetting: safetySetting, TokenCounter: tc}
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
 }
 
 func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
-	defaultVersion := config.GeminiVersion
+	defaultVersion := a.Version
+	if defaultVersion == "" {
+		defaultVersion = "v1"
+	}
 	if strings.Contains(meta.ActualModelName, "gemini-2.0") ||
 		strings.Contains(meta.ActualModelName, "gemini-1.5") {
 		defaultVersion = "v1beta"
@@ -62,7 +71,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model2.
 		geminiEmbeddingRequest := ConvertEmbeddingRequest(*request)
 		return geminiEmbeddingRequest, nil
 	default:
-		geminiRequest := ConvertRequest(*request)
+		geminiRequest := ConvertRequest(*request, a.SafetySetting)
 		return geminiRequest, nil
 	}
 }
@@ -82,13 +91,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 	if meta.IsStream {
 		var responseText string
 		err, responseText = StreamHandler(c, resp)
-		usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		usage = a.TokenCounter.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
 	} else {
 		switch meta.Mode {
 		case relaymode.Embeddings:
 			err, usage = EmbeddingHandler(c, resp)
 		default:
-			err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+			err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName, a.TokenCounter)
 		}
 	}
 	return

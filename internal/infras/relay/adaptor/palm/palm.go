@@ -127,7 +127,7 @@ func StreamHandler(c *gin.Context, resp *http.Response) (*model2.ErrorWithStatus
 	return nil, responseText
 }
 
-func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model2.ErrorWithStatusCode, *model2.Usage) {
+func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string, tc *openai2.TokenCounter) (*model2.ErrorWithStatusCode, *model2.Usage) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return openai2.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
@@ -154,7 +154,7 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	}
 	fullTextResponse := responsePaLM2OpenAI(&palmResponse)
 	fullTextResponse.Model = modelName
-	completionTokens := openai2.CountTokenText(palmResponse.Candidates[0].Content, modelName)
+	completionTokens := tc.CountTokenText(palmResponse.Candidates[0].Content, modelName)
 	usage := model2.Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,

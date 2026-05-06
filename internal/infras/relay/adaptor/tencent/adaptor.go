@@ -20,10 +20,11 @@ import (
 // https://cloud.tencent.com/document/api/1729/101837
 
 type Adaptor struct {
-	Sign      string
-	Action    string
-	Version   string
-	Timestamp int64
+	Sign         string
+	Action       string
+	Version      string
+	Timestamp    int64
+	TokenCounter *openai.TokenCounter
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
@@ -84,7 +85,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 	if meta.IsStream {
 		var responseText string
 		err, responseText = StreamHandler(c, resp)
-		usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		usage = a.TokenCounter.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
 	} else {
 		switch meta.Mode {
 		case relaymode.Embeddings:

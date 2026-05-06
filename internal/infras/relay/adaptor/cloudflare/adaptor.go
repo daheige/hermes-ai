@@ -10,13 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"hermes-ai/internal/infras/relay/adaptor"
+	"hermes-ai/internal/infras/relay/adaptor/openai"
 	"hermes-ai/internal/infras/relay/meta"
 	model2 "hermes-ai/internal/infras/relay/model"
 	"hermes-ai/internal/infras/relay/relaymode"
 )
 
 type Adaptor struct {
-	meta *meta.Meta
+	meta         *meta.Meta
+	TokenCounter *openai.TokenCounter
 }
 
 // ConvertImageRequest implements adaptor.Adaptor.
@@ -85,9 +87,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Read
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model2.Usage, err *model2.ErrorWithStatusCode) {
 	if meta.IsStream {
-		err, usage = StreamHandler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		err, usage = StreamHandler(c, resp, meta.PromptTokens, meta.ActualModelName, a.TokenCounter)
 	} else {
-		err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName, a.TokenCounter)
 	}
 	return
 }

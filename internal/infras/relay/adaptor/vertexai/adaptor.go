@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	channelhelper "hermes-ai/internal/infras/relay/adaptor"
+	"hermes-ai/internal/infras/relay/adaptor/openai"
 	"hermes-ai/internal/infras/relay/meta"
 	relaymodel "hermes-ai/internal/infras/relay/model"
 )
@@ -18,7 +19,10 @@ var _ channelhelper.Adaptor = new(Adaptor)
 
 const channelName = "vertexai"
 
-type Adaptor struct{}
+type Adaptor struct {
+	TokenCounter  *openai.TokenCounter
+	SafetySetting string
+}
 
 func (a *Adaptor) Init(meta *meta.Meta) {
 }
@@ -28,7 +32,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *relaymo
 		return nil, errors.New("request is nil")
 	}
 
-	adaptor := GetAdaptor(request.Model)
+	adaptor := GetAdaptor(request.Model, a.TokenCounter, a.SafetySetting)
 	if adaptor == nil {
 		return nil, errors.New("adaptor not found")
 	}
@@ -37,7 +41,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *relaymo
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *relaymodel.Usage, err *relaymodel.ErrorWithStatusCode) {
-	adaptor := GetAdaptor(meta.ActualModelName)
+	adaptor := GetAdaptor(meta.ActualModelName, a.TokenCounter, a.SafetySetting)
 	if adaptor == nil {
 		return nil, &relaymodel.ErrorWithStatusCode{
 			StatusCode: http.StatusInternalServerError,

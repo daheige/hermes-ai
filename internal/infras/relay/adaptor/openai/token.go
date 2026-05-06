@@ -10,17 +10,25 @@ import (
 
 	"github.com/pkoukk/tiktoken-go"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/image"
 	billingratio "hermes-ai/internal/infras/relay/billing/ratio"
 	"hermes-ai/internal/infras/relay/model"
 )
 
-// tokenEncoderMap won't grow after initialization
-var tokenEncoderMap = map[string]*tiktoken.Tiktoken{}
-var defaultTokenEncoder *tiktoken.Tiktoken
+// TokenCounter 封装 token 计数逻辑，避免包级状态
+type TokenCounter struct {
+	tokenEncoderMap         map[string]*tiktoken.Tiktoken
+	defaultTokenEncoder     *tiktoken.Tiktoken
+	approximateTokenEnabled bool
+}
 
-func InitTokenEncoders() {
+// NewTokenCounter 创建 TokenCounter 并初始化编码器缓存
+func NewTokenCounter(approximateTokenEnabled bool) *TokenCounter {
+	tc := &TokenCounter{
+		tokenEncoderMap:         make(map[string]*tiktoken.Tiktoken),
+		approximateTokenEnabled: approximateTokenEnabled,
+	}
+
 	slog.Info("initializing token encoders")
 	gpt35TokenEncoder, err := tiktoken.EncodingForModel("gpt-3.5-turbo")
 	if err != nil {
@@ -28,7 +36,7 @@ func InitTokenEncoders() {
 			"if you are using in offline environment, please set TIKTOKEN_CACHE_DIR to use exsited files, check this link for more information: https://stackoverflow.com/questions/76106366/how-to-use-tiktoken-in-offline-mode-computer ", err.Error()))
 	}
 
-	defaultTokenEncoder = gpt35TokenEncoder
+	tc.defaultTokenEncoder = gpt35TokenEncoder
 	gpt4oTokenEncoder, err := tiktoken.EncodingForModel("gpt-4o")
 	if err != nil {
 		log.Fatalln(fmt.Sprintf("failed to get gpt-4o token encoder: %s", err.Error()))
@@ -39,20 +47,21 @@ func InitTokenEncoders() {
 	}
 	for model := range billingratio.ModelRatio {
 		if strings.HasPrefix(model, "gpt-3.5") {
-			tokenEncoderMap[model] = gpt35TokenEncoder
+			tc.tokenEncoderMap[model] = gpt35TokenEncoder
 		} else if strings.HasPrefix(model, "gpt-4o") {
-			tokenEncoderMap[model] = gpt4oTokenEncoder
+			tc.tokenEncoderMap[model] = gpt4oTokenEncoder
 		} else if strings.HasPrefix(model, "gpt-4") {
-			tokenEncoderMap[model] = gpt4TokenEncoder
+			tc.tokenEncoderMap[model] = gpt4TokenEncoder
 		} else {
-			tokenEncoderMap[model] = nil
+			tc.tokenEncoderMap[model] = nil
 		}
 	}
 	slog.Info("token encoders initialized")
+	return tc
 }
 
-func getTokenEncoder(model string) *tiktoken.Tiktoken {
-	tokenEncoder, ok := tokenEncoderMap[model]
+func (tc *TokenCounter) getTokenEncoder(model string) *tiktoken.Tiktoken {
+	tokenEncoder, ok := tc.tokenEncoderMap[model]
 	if ok && tokenEncoder != nil {
 		return tokenEncoder
 	}
@@ -60,23 +69,23 @@ func getTokenEncoder(model string) *tiktoken.Tiktoken {
 		tokenEncoder, err := tiktoken.EncodingForModel(model)
 		if err != nil {
 			slog.Error(fmt.Sprintf("failed to get token encoder for model %s: %s, using encoder for gpt-3.5-turbo", model, err.Error()))
-			tokenEncoder = defaultTokenEncoder
+			tokenEncoder = tc.defaultTokenEncoder
 		}
-		tokenEncoderMap[model] = tokenEncoder
+		tc.tokenEncoderMap[model] = tokenEncoder
 		return tokenEncoder
 	}
-	return defaultTokenEncoder
+	return tc.defaultTokenEncoder
 }
 
-func getTokenNum(tokenEncoder *tiktoken.Tiktoken, text string) int {
-	if config.ApproximateTokenEnabled {
+func (tc *TokenCounter) getTokenNum(tokenEncoder *tiktoken.Tiktoken, text string) int {
+	if tc.approximateTokenEnabled {
 		return int(float64(len(text)) * 0.38)
 	}
 	return len(tokenEncoder.Encode(text, nil, nil))
 }
 
-func CountTokenMessages(messages []model.Message, model string) int {
-	tokenEncoder := getTokenEncoder(model)
+func (tc *TokenCounter) CountTokenMessages(messages []model.Message, model string) int {
+	tokenEncoder := tc.getTokenEncoder(model)
 	// Reference:
 	// https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
 	// https://github.com/pkoukk/tiktoken-go/issues/6
@@ -96,7 +105,7 @@ func CountTokenMessages(messages []model.Message, model string) int {
 		tokenNum += tokensPerMessage
 		switch v := message.Content.(type) {
 		case string:
-			tokenNum += getTokenNum(tokenEncoder, v)
+			tokenNum += tc.getTokenNum(tokenEncoder, v)
 		case []any:
 			for _, it := range v {
 				m := it.(map[string]any)
@@ -104,7 +113,7 @@ func CountTokenMessages(messages []model.Message, model string) int {
 				case "text":
 					if textValue, ok := m["text"]; ok {
 						if textString, ok := textValue.(string); ok {
-							tokenNum += getTokenNum(tokenEncoder, textString)
+							tokenNum += tc.getTokenNum(tokenEncoder, textString)
 						}
 					}
 				case "image_url":
@@ -125,10 +134,10 @@ func CountTokenMessages(messages []model.Message, model string) int {
 				}
 			}
 		}
-		tokenNum += getTokenNum(tokenEncoder, message.Role)
+		tokenNum += tc.getTokenNum(tokenEncoder, message.Role)
 		if message.Name != nil {
 			tokenNum += tokensPerName
-			tokenNum += getTokenNum(tokenEncoder, *message.Name)
+			tokenNum += tc.getTokenNum(tokenEncoder, *message.Name)
 		}
 	}
 	tokenNum += 3 // Every reply is primed with <|start|>assistant<|message|>
@@ -213,25 +222,25 @@ func countImageTokens(url string, detail string, model string) (_ int, err error
 	}
 }
 
-func CountTokenInput(input any, model string) int {
+func (tc *TokenCounter) CountTokenInput(input any, model string) int {
 	switch v := input.(type) {
 	case string:
-		return CountTokenText(v, model)
+		return tc.CountTokenText(v, model)
 	case []string:
 		text := ""
 		for _, s := range v {
 			text += s
 		}
-		return CountTokenText(text, model)
+		return tc.CountTokenText(text, model)
 	}
 	return 0
 }
 
-func CountTokenText(text string, model string) int {
-	tokenEncoder := getTokenEncoder(model)
-	return getTokenNum(tokenEncoder, text)
+func (tc *TokenCounter) CountTokenText(text string, model string) int {
+	tokenEncoder := tc.getTokenEncoder(model)
+	return tc.getTokenNum(tokenEncoder, text)
 }
 
-func CountToken(text string) int {
-	return CountTokenInput(text, "gpt-3.5-turbo")
+func (tc *TokenCounter) CountToken(text string) int {
+	return tc.CountTokenInput(text, "gpt-3.5-turbo")
 }

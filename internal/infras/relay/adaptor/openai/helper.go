@@ -8,10 +8,10 @@ import (
 	"hermes-ai/internal/infras/relay/model"
 )
 
-func ResponseText2Usage(responseText string, modelName string, promptTokens int) *model.Usage {
+func (tc *TokenCounter) ResponseText2Usage(responseText string, modelName string, promptTokens int) *model.Usage {
 	usage := &model.Usage{}
 	usage.PromptTokens = promptTokens
-	usage.CompletionTokens = CountTokenText(responseText, modelName)
+	usage.CompletionTokens = tc.CountTokenText(responseText, modelName)
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage
 }

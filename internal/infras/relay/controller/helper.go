@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/logger"
 	openai2 "hermes-ai/internal/infras/relay/adaptor/openai"
@@ -46,30 +45,30 @@ func getAndValidateTextRequest(c *gin.Context, relayMode int) (*model2.GeneralOp
 	return textRequest, nil
 }
 
-func getPromptTokens(textRequest *model2.GeneralOpenAIRequest, relayMode int) int {
+func getPromptTokens(textRequest *model2.GeneralOpenAIRequest, relayMode int, tc *openai2.TokenCounter) int {
 	switch relayMode {
 	case relaymode.ChatCompletions:
-		return openai2.CountTokenMessages(textRequest.Messages, textRequest.Model)
+		return tc.CountTokenMessages(textRequest.Messages, textRequest.Model)
 	case relaymode.Completions:
-		return openai2.CountTokenInput(textRequest.Prompt, textRequest.Model)
+		return tc.CountTokenInput(textRequest.Prompt, textRequest.Model)
 	case relaymode.Moderations:
-		return openai2.CountTokenInput(textRequest.Input, textRequest.Model)
+		return tc.CountTokenInput(textRequest.Input, textRequest.Model)
 	default:
 	}
 
 	return 0
 }
 
-func getPreConsumedQuota(textRequest *model2.GeneralOpenAIRequest, promptTokens int, ratio float64) int64 {
-	preConsumedTokens := config.PreConsumedQuota + int64(promptTokens)
+func getPreConsumedQuota(textRequest *model2.GeneralOpenAIRequest, promptTokens int, ratio float64, preConsumedQuota int64) int64 {
+	preConsumedTokens := preConsumedQuota + int64(promptTokens)
 	if textRequest.MaxTokens != 0 {
 		preConsumedTokens += int64(textRequest.MaxTokens)
 	}
 	return int64(float64(preConsumedTokens) * ratio)
 }
 
-func preConsumeQuota(ctx context.Context, textRequest *model2.GeneralOpenAIRequest, promptTokens int, ratio float64, meta *meta.Meta) (int64, *model2.ErrorWithStatusCode) {
-	preConsumedQuota := getPreConsumedQuota(textRequest, promptTokens, ratio)
+func preConsumeQuota(ctx context.Context, textRequest *model2.GeneralOpenAIRequest, promptTokens int, ratio float64, meta *meta.Meta, basePreConsumedQuota int64) (int64, *model2.ErrorWithStatusCode) {
+	preConsumedQuota := getPreConsumedQuota(textRequest, promptTokens, ratio, basePreConsumedQuota)
 
 	userQuota, err := services.UserService.CacheGetUserQuota(ctx, meta.UserId)
 	if err != nil {

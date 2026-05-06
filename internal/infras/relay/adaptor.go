@@ -24,7 +24,19 @@ import (
 	"hermes-ai/internal/infras/relay/apitype"
 )
 
-func GetAdaptor(apiType int) adaptor.Adaptor {
+type AdaptorFactory struct {
+	tokenCounter *openai.TokenCounter
+}
+
+func NewAdaptorFactory(tc *openai.TokenCounter) *AdaptorFactory {
+	return &AdaptorFactory{tokenCounter: tc}
+}
+
+func (f *AdaptorFactory) TokenCounter() *openai.TokenCounter {
+	return f.tokenCounter
+}
+
+func (f *AdaptorFactory) GetAdaptor(apiType int) adaptor.Adaptor {
 	switch apiType {
 	case apitype.AIProxyLibrary:
 		return &aiproxy.Adaptor{}
@@ -37,33 +49,33 @@ func GetAdaptor(apiType int) adaptor.Adaptor {
 	case apitype.Baidu:
 		return &baidu.Adaptor{}
 	case apitype.Gemini:
-		return &gemini.Adaptor{}
+		return &gemini.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.OpenAI:
-		return &openai.Adaptor{}
+		return openai.NewAdaptor(f.tokenCounter)
 	case apitype.PaLM:
-		return &palm.Adaptor{}
+		return &palm.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.Tencent:
-		return &tencent.Adaptor{}
+		return &tencent.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.Xunfei:
 		return &xunfei.Adaptor{}
 	case apitype.Zhipu:
-		return &zhipu.Adaptor{}
+		return zhipu.NewAdaptor(f.tokenCounter)
 	case apitype.Ollama:
 		return &ollama.Adaptor{}
 	case apitype.Coze:
-		return &coze.Adaptor{}
+		return &coze.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.Cohere:
 		return &cohere.Adaptor{}
 	case apitype.Cloudflare:
-		return &cloudflare.Adaptor{}
+		return &cloudflare.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.DeepL:
 		return &deepl.Adaptor{}
 	case apitype.VertexAI:
-		return &vertexai.Adaptor{}
+		return &vertexai.Adaptor{TokenCounter: f.tokenCounter}
 	case apitype.Proxy:
 		return &proxy.Adaptor{}
 	case apitype.Replicate:
-		return &replicate.Adaptor{}
+		return &replicate.Adaptor{TokenCounter: f.tokenCounter}
 	}
 	return nil
 }

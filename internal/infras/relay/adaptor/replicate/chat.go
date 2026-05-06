@@ -18,7 +18,7 @@ import (
 	"hermes-ai/internal/infras/render"
 )
 
-func ChatHandler(c *gin.Context, resp *http.Response) (
+func ChatHandler(c *gin.Context, resp *http.Response, tc *openai2.TokenCounter) (
 	srvErr *model.ErrorWithStatusCode, usage *model.Usage) {
 	if resp.StatusCode != http.StatusCreated {
 		payload, _ := io.ReadAll(resp.Body)
@@ -90,7 +90,7 @@ func ChatHandler(c *gin.Context, resp *http.Response) (
 			}
 
 			ctxMeta := meta.GetByContext(c)
-			usage = openai2.ResponseText2Usage(responseText,
+			usage = tc.ResponseText2Usage(responseText,
 				ctxMeta.ActualModelName, ctxMeta.PromptTokens)
 			return nil
 		}()

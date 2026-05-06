@@ -39,6 +39,8 @@ type MiscConfig struct {
 	OidcUserinfoEndpoint          string
 	EmailDomainRestrictionEnabled bool
 	EmailDomainWhitelist          []string
+	SMTPConfig                    message2.SMTPConfig
+	MessagePusherConfig           message2.MessagePusherConfig
 }
 
 // MiscHandler 杂项处理器
@@ -152,6 +154,7 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 	validate.RegisterVerificationCodeWithKey(email, code, validate.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s 邮箱验证邮件", h.SystemName)
 	content := message2.EmailTemplate(
+		h.SystemName,
 		subject,
 		fmt.Sprintf(`
 			<p>您好！</p>
@@ -161,7 +164,7 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 			<p style="color: #666;">验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>
 		`, h.SystemName, code, validate.VerificationValidMinutes),
 	)
-	err := message2.SendEmail(subject, email, content)
+	err := message2.SendEmail(h.SMTPConfig, h.SystemName, subject, email, content)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -198,6 +201,7 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", h.ServerAddress, email, code)
 	subject := fmt.Sprintf("%s 密码重置", h.SystemName)
 	content := message2.EmailTemplate(
+		h.SystemName,
 		subject,
 		fmt.Sprintf(`
 			<p>您好！</p>
@@ -211,7 +215,7 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 			<p style="color: #666;">重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>
 		`, h.SystemName, link, link, validate.VerificationValidMinutes),
 	)
-	err := message2.SendEmail(subject, email, content)
+	err := message2.SendEmail(h.SMTPConfig, h.SystemName, subject, email, content)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

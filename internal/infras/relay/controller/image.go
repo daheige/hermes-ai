@@ -106,7 +106,7 @@ func getImageCostRatio(imageRequest *model2.ImageRequest) (float64, error) {
 	return imageCostRatio, nil
 }
 
-func RelayImageHelper(c *gin.Context, relayMode int) *model2.ErrorWithStatusCode {
+func RelayImageHelper(c *gin.Context, relayMode int, factory *relay.AdaptorFactory) *model2.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	metaEntry := meta.GetByContext(c)
 	imageRequest, err := getImageRequest(c, metaEntry.Mode)
@@ -149,7 +149,7 @@ func RelayImageHelper(c *gin.Context, relayMode int) *model2.ErrorWithStatusCode
 		requestBody = c.Request.Body
 	}
 
-	adaptor := relay.GetAdaptor(metaEntry.APIType)
+	adaptor := factory.GetAdaptor(metaEntry.APIType)
 	if adaptor == nil {
 		return openai.ErrorWrapper(fmt.Errorf("invalid api type: %d", metaEntry.APIType), "invalid_api_type", http.StatusBadRequest)
 	}

@@ -21,7 +21,8 @@ import (
 )
 
 type Adaptor struct {
-	meta *meta.Meta
+	meta         *meta.Meta
+	TokenCounter *openai.TokenCounter
 }
 
 // ConvertImageRequest implements adaptor.Adaptor.
@@ -121,7 +122,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 	case relaymode.ImagesGenerations:
 		err, usage = ImageHandler(c, resp)
 	case relaymode.ChatCompletions:
-		err, usage = ChatHandler(c, resp)
+		err, usage = ChatHandler(c, resp, a.TokenCounter)
 	default:
 		err = openai.ErrorWrapper(errors.New("not implemented"), "not_implemented", http.StatusInternalServerError)
 	}

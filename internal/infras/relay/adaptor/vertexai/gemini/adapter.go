@@ -25,6 +25,8 @@ var ModelList = []string{
 }
 
 type Adaptor struct {
+	TokenCounter  *openai.TokenCounter
+	SafetySetting string
 }
 
 func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model2.GeneralOpenAIRequest) (any, error) {
@@ -32,7 +34,7 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model2.
 		return nil, errors.New("request is nil")
 	}
 
-	geminiRequest := gemini.ConvertRequest(*request)
+	geminiRequest := gemini.ConvertRequest(*request, a.SafetySetting)
 	c.Set(ctxkey.RequestModel, request.Model)
 	c.Set(ctxkey.ConvertedRequest, geminiRequest)
 	return geminiRequest, nil
@@ -42,13 +44,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 	if meta.IsStream {
 		var responseText string
 		err, responseText = gemini.StreamHandler(c, resp)
-		usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		usage = a.TokenCounter.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
 	} else {
 		switch meta.Mode {
 		case relaymode.Embeddings:
 			err, usage = gemini.EmbeddingHandler(c, resp)
 		default:
-			err, usage = gemini.Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+			err, usage = gemini.Handler(c, resp, meta.PromptTokens, meta.ActualModelName, a.TokenCounter)
 		}
 	}
 	return

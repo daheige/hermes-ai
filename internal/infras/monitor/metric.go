@@ -1,83 +1,72 @@
 package monitor
 
-import (
-	"hermes-ai/internal/infras/config"
-)
-
-var (
-	store             = make(map[int][]bool)
-	metricSuccessChan = make(chan int, config.MetricSuccessChanSize)
-	metricFailChan    = make(chan int, config.MetricFailChanSize)
-)
-
-func consumeSuccess(channelId int) {
-	if len(store[channelId]) > config.MetricQueueSize {
-		store[channelId] = store[channelId][1:]
-	}
-	store[channelId] = append(store[channelId], true)
+type MetricCollector struct {
+	store                  map[int][]bool
+	metricSuccessChan      chan int
+	metricFailChan         chan int
+	queueSize              int
+	successRateThreshold   float64
+	channelMonitor         *ChannelMonitor
 }
 
-func consumeFail(channelId int) (bool, float64) {
-	if len(store[channelId]) > config.MetricQueueSize {
-		store[channelId] = store[channelId][1:]
+func NewMetricCollector(channelMonitor *ChannelMonitor, queueSize int, successRateThreshold float64, successChanSize, failChanSize int) *MetricCollector {
+	mc := &MetricCollector{
+		store:                make(map[int][]bool),
+		metricSuccessChan:    make(chan int, successChanSize),
+		metricFailChan:       make(chan int, failChanSize),
+		queueSize:            queueSize,
+		successRateThreshold: successRateThreshold,
+		channelMonitor:       channelMonitor,
 	}
-	store[channelId] = append(store[channelId], false)
-	successCount := 0
-	for _, success := range store[channelId] {
-		if success {
-			successCount++
-		}
-	}
-	successRate := float64(successCount) / float64(len(store[channelId]))
-	if len(store[channelId]) < config.MetricQueueSize {
-		return false, successRate
-	}
-	if successRate < config.MetricSuccessRateThreshold {
-		store[channelId] = make([]bool, 0)
-		return true, successRate
-	}
-	return false, successRate
+	go mc.consumeSuccess()
+	go mc.consumeFail()
+	return mc
 }
 
-func metricSuccessConsumer() {
+func (mc *MetricCollector) consumeSuccess() {
 	for {
 		select {
-		case channelId := <-metricSuccessChan:
-			consumeSuccess(channelId)
+		case channelId := <-mc.metricSuccessChan:
+			if len(mc.store[channelId]) > mc.queueSize {
+				mc.store[channelId] = mc.store[channelId][1:]
+			}
+			mc.store[channelId] = append(mc.store[channelId], true)
 		}
 	}
 }
 
-func metricFailConsumer(channelMonitor *ChannelMonitor) {
+func (mc *MetricCollector) consumeFail() {
 	for {
 		select {
-		case channelId := <-metricFailChan:
-			disable, successRate := consumeFail(channelId)
-			if disable {
-				go channelMonitor.MetricDisableChannel(channelId, successRate)
+		case channelId := <-mc.metricFailChan:
+			if len(mc.store[channelId]) > mc.queueSize {
+				mc.store[channelId] = mc.store[channelId][1:]
+			}
+			mc.store[channelId] = append(mc.store[channelId], false)
+			successCount := 0
+			for _, success := range mc.store[channelId] {
+				if success {
+					successCount++
+				}
+			}
+			successRate := float64(successCount) / float64(len(mc.store[channelId]))
+			if len(mc.store[channelId]) < mc.queueSize {
+				return
+			}
+			if successRate < mc.successRateThreshold {
+				mc.store[channelId] = make([]bool, 0)
+				go mc.channelMonitor.MetricDisableChannel(channelId, successRate, mc.queueSize, mc.successRateThreshold)
 			}
 		}
 	}
 }
 
-// InitMetric 初始化metrics
-func InitMetric(channelMonitor *ChannelMonitor) {
-	if config.EnableMetric {
-		go metricSuccessConsumer()
-		go metricFailConsumer(channelMonitor)
-	}
-}
-
-func Emit(channelId int, success bool) {
-	if !config.EnableMetric {
-		return
-	}
-
+func (mc *MetricCollector) Emit(channelId int, success bool) {
 	go func() {
 		if success {
-			metricSuccessChan <- channelId
+			mc.metricSuccessChan <- channelId
 		} else {
-			metricFailChan <- channelId
+			mc.metricFailChan <- channelId
 		}
 	}()
 }

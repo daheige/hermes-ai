@@ -10,26 +10,32 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
-
-	"hermes-ai/internal/infras/config"
 )
 
-func shouldAuth() bool {
-	return config.SMTPAccount != "" || config.SMTPToken != ""
+type SMTPConfig struct {
+	Server  string
+	Port    int
+	Account string
+	From    string
+	Token   string
 }
 
-func SendEmail(subject string, receiver string, content string) error {
+func shouldAuth(cfg SMTPConfig) bool {
+	return cfg.Account != "" || cfg.Token != ""
+}
+
+func SendEmail(cfg SMTPConfig, systemName, subject, receiver, content string) error {
 	if receiver == "" {
 		return fmt.Errorf("receiver is empty")
 	}
-	if config.SMTPFrom == "" { // for compatibility
-		config.SMTPFrom = config.SMTPAccount
+	if cfg.From == "" { // for compatibility
+		cfg.From = cfg.Account
 	}
 
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 
 	// Extract domain from SMTPFrom
-	parts := strings.Split(config.SMTPFrom, "@")
+	parts := strings.Split(cfg.From, "@")
 	var domain string
 	if len(parts) > 1 {
 		domain = parts[1]
@@ -48,39 +54,39 @@ func SendEmail(subject string, receiver string, content string) error {
 		"Message-ID: %s\r\n"+ // add Message-ID header to avoid being treated as spam, RFC 5322
 		"Date: %s\r\n"+
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		receiver, config.SystemName, config.SMTPFrom, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), content))
+		receiver, systemName, cfg.From, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), content))
 
-	auth := smtp.PlainAuth("", config.SMTPAccount, config.SMTPToken, config.SMTPServer)
-	addr := fmt.Sprintf("%s:%d", config.SMTPServer, config.SMTPPort)
+	auth := smtp.PlainAuth("", cfg.Account, cfg.Token, cfg.Server)
+	addr := fmt.Sprintf("%s:%d", cfg.Server, cfg.Port)
 	to := strings.Split(receiver, ";")
 
-	if config.SMTPPort == 465 || !shouldAuth() {
+	if cfg.Port == 465 || !shouldAuth(cfg) {
 		// need advanced client
 		var conn net.Conn
 		var err error
-		if config.SMTPPort == 465 {
+		if cfg.Port == 465 {
 			tlsConfig := &tls.Config{
 				InsecureSkipVerify: true,
-				ServerName:         config.SMTPServer,
+				ServerName:         cfg.Server,
 			}
-			conn, err = tls.Dial("tcp", fmt.Sprintf("%s:%d", config.SMTPServer, config.SMTPPort), tlsConfig)
+			conn, err = tls.Dial("tcp", fmt.Sprintf("%s:%d", cfg.Server, cfg.Port), tlsConfig)
 		} else {
-			conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", config.SMTPServer, config.SMTPPort))
+			conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", cfg.Server, cfg.Port))
 		}
 		if err != nil {
 			return err
 		}
-		client, err := smtp.NewClient(conn, config.SMTPServer)
+		client, err := smtp.NewClient(conn, cfg.Server)
 		if err != nil {
 			return err
 		}
 		defer client.Close()
-		if shouldAuth() {
+		if shouldAuth(cfg) {
 			if err = client.Auth(auth); err != nil {
 				return err
 			}
 		}
-		if err = client.Mail(config.SMTPFrom); err != nil {
+		if err = client.Mail(cfg.From); err != nil {
 			return err
 		}
 		receiverEmails := strings.Split(receiver, ";")
@@ -103,7 +109,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		}
 		return nil
 	}
-	err = smtp.SendMail(addr, auth, config.SMTPAccount, to, mail)
+	err = smtp.SendMail(addr, auth, cfg.Account, to, mail)
 	if err != nil && strings.Contains(err.Error(), "short response") { // 部分提供商返回该错误，但实际上邮件已经发送成功
 		log.Printf("short response from SMTP server, return nil instead of error: %s", err.Error())
 		return nil

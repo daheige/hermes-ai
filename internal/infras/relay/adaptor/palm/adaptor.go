@@ -15,6 +15,7 @@ import (
 )
 
 type Adaptor struct {
+	TokenCounter *openai.TokenCounter
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
@@ -53,9 +54,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Met
 	if meta.IsStream {
 		var responseText string
 		err, responseText = StreamHandler(c, resp)
-		usage = openai.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+		usage = a.TokenCounter.ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
 	} else {
-		err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName, a.TokenCounter)
 	}
 	return
 }

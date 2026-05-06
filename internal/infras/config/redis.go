@@ -4,26 +4,22 @@ import (
 	"context"
 	"errors"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-
-	"hermes-ai/internal/infras/env"
 )
 
 // InitRedisClient 初始化redis client
-func InitRedisClient() (redis.UniversalClient, error) {
-	if os.Getenv("REDIS_CONN_STRING") == "" {
+func InitRedisClient(connString string, enableCluster bool, password, username string) (redis.UniversalClient, error) {
+	if connString == "" {
 		log.Println("REDIS_CONN_STRING not set, Redis is not enabled")
 		return nil, errors.New("REDIS_CONN_STRING not set")
 	}
 
 	var client redis.UniversalClient
-	redisConnString := os.Getenv("REDIS_CONN_STRING")
-	if !env.Bool("REDIS_ENABLE_CLUSTER", false) {
-		opt, err := redis.ParseURL(redisConnString)
+	if !enableCluster {
+		opt, err := redis.ParseURL(connString)
 		if err != nil {
 			return nil, err
 		}
@@ -33,9 +29,9 @@ func InitRedisClient() (redis.UniversalClient, error) {
 		// cluster mode
 		log.Println("Redis cluster mode enabled")
 		client = redis.NewUniversalClient(&redis.UniversalOptions{
-			Addrs:    strings.Split(redisConnString, ","),
-			Password: os.Getenv("REDIS_PASSWORD"),
-			Username: os.Getenv("REDIS_USERNAME"),
+			Addrs:    strings.Split(connString, ","),
+			Password: password,
+			Username: username,
 		})
 	}
 

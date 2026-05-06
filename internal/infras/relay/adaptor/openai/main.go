@@ -96,7 +96,7 @@ func StreamHandler(c *gin.Context, resp *http.Response, relayMode int) (*model.E
 	return nil, responseText, usage
 }
 
-func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model.ErrorWithStatusCode, *model.Usage) {
+func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string, tc *TokenCounter) (*model.ErrorWithStatusCode, *model.Usage) {
 	var textResponse SlimTextResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -139,7 +139,7 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	if textResponse.Usage.TotalTokens == 0 || (textResponse.Usage.PromptTokens == 0 && textResponse.Usage.CompletionTokens == 0) {
 		completionTokens := 0
 		for _, choice := range textResponse.Choices {
-			completionTokens += CountTokenText(choice.Message.StringContent(), modelName)
+			completionTokens += tc.CountTokenText(choice.Message.StringContent(), modelName)
 		}
 		textResponse.Usage = model.Usage{
 			PromptTokens:     promptTokens,

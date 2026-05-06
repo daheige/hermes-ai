@@ -4,7 +4,6 @@ import (
 	"embed"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,11 +13,10 @@ import (
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContainers,
-	mw *middleware.Middlewares, theme string) {
+	mw *middleware.Middlewares, theme string, frontendBaseUrl string) {
 	SetApiRouter(router, hc, mw)
 	SetDashboardRouter(router, hc, mw)
 	SetRelayRouter(router, hc, mw)
-	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if frontendBaseUrl == "" {
 		SetWebRouter(router, buildFS, hc, mw, theme)
 	} else {

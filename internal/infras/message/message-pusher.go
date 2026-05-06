@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-
-	"hermes-ai/internal/infras/config"
 )
+
+type MessagePusherConfig struct {
+	Address string
+	Token   string
+}
 
 type request struct {
 	Title       string `json:"title"`
@@ -23,21 +26,21 @@ type response struct {
 	Message string `json:"message"`
 }
 
-func SendMessage(title string, description string, content string) error {
-	if config.MessagePusherAddress == "" {
+func SendMessagePusher(cfg MessagePusherConfig, title, description, content string) error {
+	if cfg.Address == "" {
 		return errors.New("message pusher address is not set")
 	}
 	req := request{
 		Title:       title,
 		Description: description,
 		Content:     content,
-		Token:       config.MessagePusherToken,
+		Token:       cfg.Token,
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(config.MessagePusherAddress,
+	resp, err := http.Post(cfg.Address,
 		"application/json", bytes.NewBuffer(data))
 	if err != nil {
 		return err

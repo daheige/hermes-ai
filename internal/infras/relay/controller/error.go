@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/relay/model"
 )
 
@@ -77,9 +76,7 @@ func RelayErrorHandler(resp *http.Response) (ErrorWithStatusCode *model.ErrorWit
 	if err != nil {
 		return
 	}
-	if config.DebugEnabled {
-		slog.Info(fmt.Sprintf("error happened, status code: %d, response: \n%s", resp.StatusCode, string(responseBody)))
-	}
+	slog.Debug(fmt.Sprintf("error happened, status code: %d, response: \n%s", resp.StatusCode, string(responseBody)))
 
 	err = resp.Body.Close()
 	if err != nil {

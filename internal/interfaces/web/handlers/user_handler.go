@@ -11,7 +11,6 @@ import (
 
 	"hermes-ai/internal/application"
 	"hermes-ai/internal/domain/entity"
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ctxkey"
 	"hermes-ai/internal/infras/i18n"
 	"hermes-ai/internal/infras/utils"
@@ -662,10 +661,6 @@ func (h *UserHandler) EmailBind(c *gin.Context) {
 		})
 		return
 	}
-	if user.Role == entity.RoleRootUser {
-		config.RootUserEmail = email
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

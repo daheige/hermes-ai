@@ -18,7 +18,12 @@ import (
 )
 
 type Adaptor struct {
-	APIVersion string
+	APIVersion   string
+	tokenCounter *openai2.TokenCounter
+}
+
+func NewAdaptor(tc *openai2.TokenCounter) *Adaptor {
+	return &Adaptor{tokenCounter: tc}
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {
@@ -102,7 +107,7 @@ func (a *Adaptor) DoResponseV4(c *gin.Context, resp *http.Response, meta *meta.M
 	if meta.IsStream {
 		err, _, usage = openai2.StreamHandler(c, resp, meta.Mode)
 	} else {
-		err, usage = openai2.Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		err, usage = openai2.Handler(c, resp, meta.PromptTokens, meta.ActualModelName, a.tokenCounter)
 	}
 	return
 }

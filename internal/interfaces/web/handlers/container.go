@@ -4,6 +4,7 @@ import (
 	"time"
 
 	monitor2 "hermes-ai/internal/infras/monitor"
+	"hermes-ai/internal/infras/relay"
 	"hermes-ai/internal/providers"
 )
 
@@ -46,8 +47,10 @@ type HandlerParams struct {
 	AutomaticDisableChannelEnabled bool
 	RequestInterval                time.Duration
 	DisplayTokenStatEnabled        bool
-	DebugEnabled                   bool
 	RetryTimes                     int
+	PreConsumedQuota               int64
+	EnforceIncludeUsage            bool
+	EnableMetric                   bool
 	ValidThemes                    map[string]bool
 	GithubClientId                 string
 	EmailDomainWhitelist           []string
@@ -59,6 +62,8 @@ type HandlerParams struct {
 func NewHandlerContainer(
 	services *providers.Services,
 	channelMonitor *monitor2.ChannelMonitor,
+	adaptorFactory *relay.AdaptorFactory,
+	metricCollector *monitor2.MetricCollector,
 	p *HandlerParams,
 ) *HandlerContainers {
 	return &HandlerContainers{
@@ -88,6 +93,7 @@ func NewHandlerContainer(
 			services.LogService,
 			services.UserService,
 			channelMonitor,
+			adaptorFactory,
 			p.TestPrompt,
 			p.ChannelDisableThreshold,
 			p.AutomaticDisableChannelEnabled,
@@ -100,7 +106,18 @@ func NewHandlerContainer(
 		),
 		ModelHandler:      NewModelHandler(services.UserService, services.ChannelService),
 		GroupHandler:      NewGroupHandler(),
-		RelayHandler:      NewRelayHandler(services.ChannelService, channelMonitor, p.DebugEnabled, p.RetryTimes),
+		RelayHandler: NewRelayHandler(RelayHandlerDeps{
+			ChannelService:  services.ChannelService,
+			ChannelMonitor:  channelMonitor,
+			AdaptorFactory:  adaptorFactory,
+			MetricCollector: metricCollector,
+		}, RelayHandlerConfig{
+			RetryTimes:                     p.RetryTimes,
+			PreConsumedQuota:               p.PreConsumedQuota,
+			EnforceIncludeUsage:            p.EnforceIncludeUsage,
+			EnableMetric:                   p.EnableMetric,
+			AutomaticDisableChannelEnabled: p.AutomaticDisableChannelEnabled,
+		}),
 		GitHubHandler:     NewGitHubHandler(services.UserService, p.GithubUserConfig),
 		LarkUserHandler:   NewLarkUserHandler(services.UserService, p.LarkUserConfig),
 		OidcUserHandler:   NewOidcUserHandler(services.UserService, p.OidcUserConfig),

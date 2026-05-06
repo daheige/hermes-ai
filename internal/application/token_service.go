@@ -14,6 +14,12 @@ import (
 	"hermes-ai/internal/infras/utils"
 )
 
+type NotifierConfig struct {
+	SystemName          string
+	SMTPConfig          message2.SMTPConfig
+	MessagePusherConfig message2.MessagePusherConfig
+}
+
 // TokenService 令牌服务
 type TokenService struct {
 	tokenRepo    repo.TokenRepository
@@ -28,6 +34,7 @@ type TokenConfig struct {
 	BatchUpdateEnabled   bool
 	QuotaRemindThreshold int64
 	ServerAddress        string
+	NotifierConfig
 }
 
 // NewTokenService 创建令牌服务
@@ -217,6 +224,7 @@ func (s *TokenService) PreConsumeTokenQuota(tokenId int, quota int64) error {
 			if email != "" {
 				topUpLink := fmt.Sprintf("%s/topup", s.ServerAddress)
 				content := message2.EmailTemplate(
+					s.SystemName,
 					prompt,
 					fmt.Sprintf(`
 						<p>您好！</p>
@@ -229,7 +237,7 @@ func (s *TokenService) PreConsumeTokenQuota(tokenId int, quota int64) error {
 						<p style="background-color: #f8f8f8; padding: 10px; border-radius: 4px; word-break: break-all;">%s</p>
 					`, contentText, userQuota, topUpLink, topUpLink),
 				)
-				err = message2.SendEmail(prompt, email, content)
+				err = message2.SendEmail(s.SMTPConfig, s.SystemName, prompt, email, content)
 				if err != nil {
 					slog.Error("failed to send email: " + err.Error())
 				}

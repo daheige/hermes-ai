@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	"hermes-ai/internal/infras/config"
 	"hermes-ai/internal/infras/ginzo"
 	"hermes-ai/internal/infras/image"
 	openai2 "hermes-ai/internal/infras/relay/adaptor/openai"
@@ -34,29 +33,32 @@ var mimeTypeMap = map[string]string{
 }
 
 // Setting safety to the lowest possible values since Gemini is already powerless enough
-func ConvertRequest(textRequest model2.GeneralOpenAIRequest) *ChatRequest {
+func ConvertRequest(textRequest model2.GeneralOpenAIRequest, safetySetting string) *ChatRequest {
+	if safetySetting == "" {
+		safetySetting = "BLOCK_NONE"
+	}
 	geminiRequest := ChatRequest{
 		Contents: make([]ChatContent, 0, len(textRequest.Messages)),
 		SafetySettings: []ChatSafetySettings{
 			{
 				Category:  "HARM_CATEGORY_HARASSMENT",
-				Threshold: config.GeminiSafetySetting,
+				Threshold: safetySetting,
 			},
 			{
 				Category:  "HARM_CATEGORY_HATE_SPEECH",
-				Threshold: config.GeminiSafetySetting,
+				Threshold: safetySetting,
 			},
 			{
 				Category:  "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-				Threshold: config.GeminiSafetySetting,
+				Threshold: safetySetting,
 			},
 			{
 				Category:  "HARM_CATEGORY_DANGEROUS_CONTENT",
-				Threshold: config.GeminiSafetySetting,
+				Threshold: safetySetting,
 			},
 			{
 				Category:  "HARM_CATEGORY_CIVIC_INTEGRITY",
-				Threshold: config.GeminiSafetySetting,
+				Threshold: safetySetting,
 			},
 		},
 		GenerationConfig: ChatGenerationConfig{
@@ -356,7 +358,7 @@ func StreamHandler(c *gin.Context, resp *http.Response) (*model2.ErrorWithStatus
 	return nil, responseText
 }
 
-func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model2.ErrorWithStatusCode, *model2.Usage) {
+func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName string, tc *openai2.TokenCounter) (*model2.ErrorWithStatusCode, *model2.Usage) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return openai2.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
@@ -383,7 +385,7 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(&geminiResponse)
 	fullTextResponse.Model = modelName
-	completionTokens := openai2.CountTokenText(geminiResponse.GetResponseText(), modelName)
+	completionTokens := tc.CountTokenText(geminiResponse.GetResponseText(), modelName)
 	usage := model2.Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,
