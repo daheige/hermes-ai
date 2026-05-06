@@ -23,8 +23,8 @@ type Adaptor struct {
 	TokenCounter  *openai.TokenCounter
 }
 
-func NewAdaptor(version, safetySetting string, tc *openai.TokenCounter) *Adaptor {
-	return &Adaptor{Version: version, SafetySetting: safetySetting, TokenCounter: tc}
+func NewAdaptor(tc *openai.TokenCounter) *Adaptor {
+	return &Adaptor{TokenCounter: tc}
 }
 
 func (a *Adaptor) Init(meta *meta.Meta) {

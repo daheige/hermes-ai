@@ -49,7 +49,7 @@ func (f *AdaptorFactory) GetAdaptor(apiType int) adaptor.Adaptor {
 	case apitype.Baidu:
 		return &baidu.Adaptor{}
 	case apitype.Gemini:
-		return &gemini.Adaptor{TokenCounter: f.tokenCounter}
+		return gemini.NewAdaptor(f.tokenCounter)
 	case apitype.OpenAI:
 		return openai.NewAdaptor(f.tokenCounter)
 	case apitype.PaLM:
