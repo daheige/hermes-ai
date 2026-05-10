@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"hermes-ai/internal/domain/entity"
@@ -40,7 +41,7 @@ func (s *LogService) recordLogHelper(ctx context.Context, log *entity.Log) {
 		return
 	}
 
-	slog.With("request_id", logger.GetRequestID(ctx)).Info("record log: %+v", log)
+	slog.With("request_id", logger.GetRequestID(ctx)).Info(fmt.Sprintf("record log: %+v", log))
 }
 
 // RecordLog 记录日志

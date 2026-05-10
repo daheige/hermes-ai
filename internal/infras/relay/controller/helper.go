@@ -138,7 +138,7 @@ func postConsumeQuota(ctx context.Context, p postConsumeQuotaParams) {
 	err := services.TokenService.PostConsumeTokenQuota(p.meta.TokenId, quotaDelta)
 	if err != nil {
 		slog.With("request_id", logger.GetRequestID(ctx)).
-			Error("failed to handler postConsumeTokenQuota err: %s", err.Error())
+			Error("failed to handler postConsumeTokenQuota err: " + err.Error())
 	}
 
 	err = services.UserService.CacheUpdateUserQuota(ctx, p.meta.UserId)
