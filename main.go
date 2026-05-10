@@ -115,18 +115,19 @@ func main() {
 
 	// 内存缓存对于redis也是
 	if cfg.CacheEnabled {
-		slog.Info("memory cache enabled")
-		slog.Info(fmt.Sprintf("sync frequency: %d seconds", cfg.SyncFrequency))
-		services.ChannelService.InitChannelCache()
-		go services.OptionService.SyncOptions(cfg.SyncFrequency)
-		go services.ChannelService.SyncChannelCache(cfg.SyncFrequency)
+		slog.Info("sync option and channel from database")
+		defer services.ChannelService.Stop()
+		defer services.OptionService.Stop()
+
+		go services.OptionService.SyncOptions(10 * time.Second)
+		go services.ChannelService.SyncChannelCache(10 * time.Second)
 	}
 
 	if sysCfg.ChannelTestFrequency != 0 {
 		go handlers.AutomaticallyTestChannels(sysCfg.ChannelTestFrequency)
 	}
 
-	// 启动批量更新器
+	// 启动批量更新
 	if cfg.BatchUpdateEnabled {
 		slog.Info("batch update enabled with interval " + strconv.Itoa(cfg.BatchUpdateInterval) + "s")
 		repos.BatchUpdater.Start()

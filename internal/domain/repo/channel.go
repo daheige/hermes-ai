@@ -18,6 +18,10 @@ type ChannelRepository interface {
 	Insert(channel *entity.Channel) error
 	// Update 更新渠道
 	Update(channel *entity.Channel) error
+
+	// GetGroup 根据渠道id获取分组
+	GetGroup(id int) (string, error)
+
 	// Delete 删除渠道
 	Delete(id int) error
 	// UpdateResponseTime 更新渠道响应时间
@@ -25,7 +29,7 @@ type ChannelRepository interface {
 	// UpdateBalance 更新渠道余额
 	UpdateBalance(id int, balance float64)
 	// UpdateChannelStatusById 更新渠道状态
-	UpdateChannelStatusById(id int, status int)
+	UpdateChannelStatusById(id int, status int) error
 	// UpdateChannelUsedQuota 更新渠道已用配额
 	UpdateChannelUsedQuota(id int, quota int64) error
 	// DeleteChannelByStatus 根据状态删除渠道

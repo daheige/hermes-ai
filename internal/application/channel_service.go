@@ -32,6 +32,7 @@ type ChannelService struct {
 	batchUpdateEnabled bool
 	syncFrequency      int
 	cacheEnabled       bool
+	stop               chan struct{}
 }
 
 // NewChannelService 创建渠道服务
@@ -52,6 +53,7 @@ func NewChannelService(
 		batchUpdateEnabled: batchUpdateEnabled,
 		syncFrequency:      syncFrequency,
 		cacheEnabled:       cacheEnabled,
+		stop:               make(chan struct{}, 1),
 	}
 }
 
@@ -92,8 +94,17 @@ func (s *ChannelService) Insert(channel *entity.Channel) error {
 	if err != nil {
 		return err
 	}
+
 	abilities := persistence.BuildAbilities(channel)
-	return s.abilityRepo.BatchCreate(abilities)
+	err = s.abilityRepo.BatchCreate(abilities)
+	if err != nil {
+		return err
+	}
+
+	// 删除分组模型缓存
+	_ = s.DelGroupModelsCache(channel.Group)
+
+	return nil
 }
 
 // Update 更新渠道
@@ -102,22 +113,44 @@ func (s *ChannelService) Update(channel *entity.Channel) error {
 	if err != nil {
 		return err
 	}
+
 	// 更新能力: 先删除旧的，再添加新的
 	err = s.abilityRepo.DeleteByChannelId(channel.Id)
 	if err != nil {
 		return err
 	}
+
 	abilities := persistence.BuildAbilities(channel)
-	return s.abilityRepo.BatchCreate(abilities)
+	err = s.abilityRepo.BatchCreate(abilities)
+	if err != nil {
+		return err
+	}
+
+	// 删除分组模型缓存
+	_ = s.DelGroupModelsCache(channel.Group)
+
+	return nil
 }
 
 // Delete 删除渠道
 func (s *ChannelService) Delete(id int) error {
+	group, _ := s.channelRepo.GetGroup(id)
 	err := s.channelRepo.Delete(id)
 	if err != nil {
 		return err
 	}
-	return s.abilityRepo.DeleteByChannelId(id)
+
+	err = s.abilityRepo.DeleteByChannelId(id)
+	if err != nil {
+		return err
+	}
+
+	// 删除渠道分组下可用的渠道模型缓存
+	if group != "" {
+		_ = s.DelGroupModelsCache(group)
+	}
+
+	return nil
 }
 
 // UpdateResponseTime 更新渠道响应时间
@@ -131,12 +164,23 @@ func (s *ChannelService) UpdateBalance(id int, balance float64) {
 }
 
 // UpdateChannelStatusById 更新渠道状态
-func (s *ChannelService) UpdateChannelStatusById(id int, status int) {
+func (s *ChannelService) UpdateChannelStatusById(id int, status int) error {
 	err := s.abilityRepo.UpdateAbilityStatus(id, status == entity.ChannelStatusEnabled)
 	if err != nil {
 		slog.Error("failed to update ability status: " + err.Error())
+		return err
 	}
-	s.channelRepo.UpdateChannelStatusById(id, status)
+
+	err = s.channelRepo.UpdateChannelStatusById(id, status)
+	if err != nil {
+		return err
+	}
+
+	if group, _ := s.channelRepo.GetGroup(id); group != "" {
+		_ = s.DelGroupModelsCache(group)
+	}
+
+	return nil
 }
 
 // UpdateChannelUsedQuota 更新渠道已用配额
@@ -177,12 +221,24 @@ func (s *ChannelService) GetGroupModels(ctx context.Context, group string) ([]st
 	return s.abilityRepo.GetGroupModels(ctx, group)
 }
 
+<<<<<<< HEAD
+=======
+// DelGroupModelsCache 删除分组下的模型列表cache
+func (s *ChannelService) DelGroupModelsCache(group string) error {
+	key := "group_models:" + group
+	err := s.cacheRepo.Delete(key)
+	return err
+}
+
+>>>>>>> feat/daheige/global-vars
 // GetVailGroupModels 带缓存的获取分组可用模型列表
 func (s *ChannelService) GetVailGroupModels(ctx context.Context, group string) ([]string, error) {
 	if !s.cacheRepo.IsEnabled() {
 		return s.GetGroupModels(ctx, group)
 	}
-	modelsStr, err := s.cacheRepo.Get("group_models:" + group)
+
+	key := "group_models:" + group
+	modelsStr, err := s.cacheRepo.Get(key)
 	if err == nil {
 		return strings.Split(modelsStr, ","), nil
 	}
@@ -192,8 +248,13 @@ func (s *ChannelService) GetVailGroupModels(ctx context.Context, group string) (
 		return nil, err
 	}
 
+<<<<<<< HEAD
 	cacheErr := s.cacheRepo.Set("group_models:"+group, strings.Join(models, ","),
 		30*time.Second)
+=======
+	cacheErr := s.cacheRepo.Set(key, strings.Join(models, ","),
+		300*time.Second)
+>>>>>>> feat/daheige/global-vars
 	if cacheErr != nil {
 		slog.Error("Redis set group models error: " + cacheErr.Error())
 	}
@@ -251,15 +312,32 @@ func (s *ChannelService) InitChannelCache() {
 	s.channelSyncLock.Lock()
 	s.group2model2channels = newGroup2model2channels
 	s.channelSyncLock.Unlock()
-	slog.Info("channels synced from database")
+}
+
+// Stop 停止channel cache同步
+func (s *ChannelService) Stop() {
+	close(s.stop)
 }
 
 // SyncChannelCache 同步渠道缓存
-func (s *ChannelService) SyncChannelCache(frequency int) {
+// 这里每10s同步一次
+func (s *ChannelService) SyncChannelCache(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// 启动时执行一次
+	slog.Info("syncing channels from database")
+	s.InitChannelCache()
+
 	for {
-		time.Sleep(time.Duration(frequency) * time.Second)
-		slog.Info("syncing channels from database")
-		s.InitChannelCache()
+		select {
+		case <-ticker.C:
+			slog.Info("syncing channels from database")
+			s.InitChannelCache()
+		case <-s.stop:
+			slog.Info("stopping syncing channels from database")
+			return
+		}
 	}
 }
 

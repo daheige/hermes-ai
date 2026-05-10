@@ -32,7 +32,7 @@ func encryptChannel(c *entity.Channel) error {
 		c.KeyHash = crypto.KeyHash(c.Key)
 		return nil
 	}
-	
+
 	plainKey := c.Key
 	encrypted, err := crypto.Encrypt(plainKey)
 	if err != nil {
@@ -154,6 +154,17 @@ func (c *ChannelRepoImpl) Delete(id int) error {
 	return c.db.Delete(&entity.Channel{}, "id = ?", id).Error
 }
 
+// GetGroup 根据id获取分组
+func (c *ChannelRepoImpl) GetGroup(id int) (string, error) {
+	var group string
+	err := c.db.Where("id = ?", id).First(&group).Error
+	if err != nil {
+		return "", err
+	}
+
+	return group, nil
+}
+
 // UpdateResponseTime 更新渠道响应时间
 func (c *ChannelRepoImpl) UpdateResponseTime(id int, responseTime int64) {
 	c.db.Model(&entity.Channel{Id: id}).Select("response_time", "test_time").Updates(entity.Channel{
@@ -171,8 +182,9 @@ func (c *ChannelRepoImpl) UpdateBalance(id int, balance float64) {
 }
 
 // UpdateChannelStatusById 更新渠道状态
-func (c *ChannelRepoImpl) UpdateChannelStatusById(id int, status int) {
-	c.db.Model(&entity.Channel{}).Where("id = ?", id).Update("status", status)
+func (c *ChannelRepoImpl) UpdateChannelStatusById(id int, status int) error {
+	err := c.db.Model(&entity.Channel{}).Where("id = ?", id).Update("status", status).Error
+	return err
 }
 
 // UpdateChannelUsedQuota 更新渠道已用配额

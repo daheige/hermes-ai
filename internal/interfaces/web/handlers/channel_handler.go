@@ -140,6 +140,10 @@ func (h *ChannelHandler) AddChannel(c *gin.Context) {
 		})
 		return
 	}
+
+	// 删除分组模型缓存
+	_ = h.service.DelGroupModelsCache(req.Group)
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -228,6 +232,7 @@ func (h *ChannelHandler) UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

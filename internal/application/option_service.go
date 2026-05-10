@@ -16,11 +16,12 @@ import (
 type OptionService struct {
 	optionRepo repo.OptionRepository
 	cfg        *config.AppConfig
+	stop       chan struct{}
 }
 
 // NewOptionService 创建配置选项服务
 func NewOptionService(optionRepo repo.OptionRepository, cfg *config.AppConfig) *OptionService {
-	return &OptionService{optionRepo: optionRepo, cfg: cfg}
+	return &OptionService{optionRepo: optionRepo, cfg: cfg, stop: make(chan struct{}, 1)}
 }
 
 // AllOption 获取所有配置选项
@@ -84,7 +85,6 @@ func (s *OptionService) InitOptionMap() {
 	s.cfg.OptionMap["RetryTimes"] = strconv.Itoa(s.cfg.RetryTimes)
 	s.cfg.OptionMap["Theme"] = s.cfg.Theme
 	s.cfg.OptionMapRWMutex.Unlock()
-	s.loadOptionsFromDatabase()
 }
 
 func (s *OptionService) loadOptionsFromDatabase() {
@@ -101,12 +101,28 @@ func (s *OptionService) loadOptionsFromDatabase() {
 	}
 }
 
+func (s *OptionService) Stop() {
+	close(s.stop)
+}
+
 // SyncOptions 同步配置选项
-func (s *OptionService) SyncOptions(frequency int) {
+func (s *OptionService) SyncOptions(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// 启动时执行一次
+	slog.Info("syncing options from database")
+	s.loadOptionsFromDatabase()
+
 	for {
-		time.Sleep(time.Duration(frequency) * time.Second)
-		slog.Info("syncing options from database")
-		s.loadOptionsFromDatabase()
+		select {
+		case <-ticker.C:
+			slog.Info("syncing options from database")
+			s.loadOptionsFromDatabase()
+		case <-s.stop:
+			slog.Info("stopping options sync from database")
+			return
+		}
 	}
 }
 

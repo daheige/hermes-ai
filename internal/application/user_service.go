@@ -350,6 +350,7 @@ func (s *UserService) CacheGetUserGroup(id int) (string, error) {
 	if !s.cacheRepo.IsEnabled() {
 		return s.GetUserGroup(id)
 	}
+
 	group, err := s.cacheRepo.Get(fmt.Sprintf("user_group:%d", id))
 	if err != nil {
 		group, err = s.GetUserGroup(id)
