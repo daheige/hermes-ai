@@ -46,22 +46,33 @@ type ChannelTestHandler struct {
 	requestInterval                time.Duration
 }
 
+type ChannelTestHandlerDeps struct {
+	Service        *application.ChannelService
+	LogService     *application.LogService
+	UserService    *application.UserService
+	ChannelMonitor *monitor2.ChannelMonitor
+	AdaptorFactory *relay.AdaptorFactory
+}
+
+type ChannelTestHandlerConfig struct {
+	TestPrompt                     string
+	ChannelDisableThreshold        float64
+	AutomaticDisableChannelEnabled bool
+	RequestInterval                time.Duration
+}
+
 // NewChannelTestHandler 创建渠道测试处理器
-func NewChannelTestHandler(service *application.ChannelService,
-	logService *application.LogService,
-	userService *application.UserService, channelMonitor *monitor2.ChannelMonitor,
-	adaptorFactory *relay.AdaptorFactory,
-	testPrompt string, channelDisableThreshold float64, automaticDisableChannelEnabled bool, requestInterval time.Duration) *ChannelTestHandler {
+func NewChannelTestHandler(deps ChannelTestHandlerDeps, cfg ChannelTestHandlerConfig) *ChannelTestHandler {
 	return &ChannelTestHandler{
-		service:                        service,
-		logService:                     logService,
-		userService:                    userService,
-		channelMonitor:                 channelMonitor,
-		adaptorFactory:                 adaptorFactory,
-		testPrompt:                     testPrompt,
-		channelDisableThreshold:        channelDisableThreshold,
-		automaticDisableChannelEnabled: automaticDisableChannelEnabled,
-		requestInterval:                requestInterval,
+		service:                        deps.Service,
+		logService:                     deps.LogService,
+		userService:                    deps.UserService,
+		channelMonitor:                 deps.ChannelMonitor,
+		adaptorFactory:                 deps.AdaptorFactory,
+		testPrompt:                     cfg.TestPrompt,
+		channelDisableThreshold:        cfg.ChannelDisableThreshold,
+		automaticDisableChannelEnabled: cfg.AutomaticDisableChannelEnabled,
+		requestInterval:                cfg.RequestInterval,
 	}
 }
 
@@ -119,6 +130,7 @@ func (h *ChannelTestHandler) testChannel(ctx context.Context, channel *entity.Ch
 	if adaptor == nil {
 		return "", fmt.Errorf("invalid api type: %d, adaptor is nil", apiType), nil
 	}
+
 	adaptor.Init(meta)
 	modelName := request.Model
 	modelMap := channel.GetModelMapping()
@@ -159,7 +171,9 @@ func (h *ChannelTestHandler) testChannel(ctx context.Context, channel *entity.Ch
 			ElapsedTime: utils.CalcElapsedTime(startTime),
 		})
 	}()
-	slog.Info(string(jsonData))
+
+	// slog.Debug(string(jsonData))
+
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(requestBody)
 	resp, err := adaptor.DoRequest(c, meta, requestBody)
@@ -192,7 +206,8 @@ func (h *ChannelTestHandler) testChannel(ctx context.Context, channel *entity.Ch
 	if err != nil {
 		return "", err, nil
 	}
-	slog.Info(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+
+	slog.Debug(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return responseMessage, nil, nil
 }
 
@@ -201,12 +216,13 @@ func (h *ChannelTestHandler) TestChannel(c *gin.Context) {
 	ctx := c.Request.Context()
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+
 	channel, err := h.service.GetChannelById(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -243,8 +259,10 @@ func (h *ChannelTestHandler) TestChannel(c *gin.Context) {
 	})
 }
 
-var testAllChannelsLock sync.Mutex
-var testAllChannelsRunning bool = false
+var (
+	testAllChannelsLock    sync.Mutex
+	testAllChannelsRunning = false
+)
 
 func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scope string) error {
 	testAllChannelsLock.Lock()
@@ -252,12 +270,14 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 		testAllChannelsLock.Unlock()
 		return errors.New("测试已在运行中")
 	}
+
 	testAllChannelsRunning = true
 	testAllChannelsLock.Unlock()
 	channels, err := h.service.GetAllChannels(0, 0, scope)
 	if err != nil {
 		return err
 	}
+
 	var disableThreshold = int64(h.channelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
@@ -291,6 +311,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 			h.service.UpdateResponseTime(channel.Id, milliseconds)
 			time.Sleep(h.requestInterval)
 		}
+
 		testAllChannelsLock.Lock()
 		testAllChannelsRunning = false
 		testAllChannelsLock.Unlock()
@@ -304,10 +325,7 @@ func (h *ChannelTestHandler) testChannels(ctx context.Context, notify bool, scop
 // TestChannels 测试所有渠道
 func (h *ChannelTestHandler) TestChannels(c *gin.Context) {
 	ctx := c.Request.Context()
-	scope := c.Query("scope")
-	if scope == "" {
-		scope = "all"
-	}
+	scope := c.DefaultQuery("scope", "all")
 	err := h.testChannels(ctx, true, scope)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -316,6 +334,7 @@ func (h *ChannelTestHandler) TestChannels(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

@@ -15,14 +15,12 @@ import (
 
 func abortWithMessage(c *gin.Context, statusCode int, message string) {
 	slog.With("request_id", logger.GetRequestID(c.Request.Context())).Error(message)
-
-	c.JSON(statusCode, gin.H{
+	c.AbortWithStatusJSON(statusCode, gin.H{
 		"error": gin.H{
 			"message": utils.MessageWithRequestId(message, c.GetString(ctxkey.RequestIdKey)),
 			"type":    "one_api_error",
 		},
 	})
-	c.Abort()
 }
 
 func getRequestModel(c *gin.Context) (string, error) {
@@ -52,6 +50,7 @@ func getRequestModel(c *gin.Context) (string, error) {
 			modelRequest.Model = "whisper-1"
 		}
 	}
+
 	return modelRequest.Model, nil
 }
 

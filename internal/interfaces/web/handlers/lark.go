@@ -46,6 +46,7 @@ func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) 
 	if code == "" {
 		return nil, errors.New("无效的参数")
 	}
+
 	values := map[string]string{
 		"client_id":     h.LarkClientId,
 		"client_secret": h.LarkClientSecret,
@@ -58,10 +59,12 @@ func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	req, err := http.NewRequest("POST", "https://open.feishu.cn/open-apis/authen/v2/oauth/token", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	client := http.Client{
@@ -69,9 +72,10 @@ func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) 
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		slog.Info(err.Error())
+		slog.Error("failed to get lark user", slog.String("error", err.Error()))
 		return nil, errors.New("无法连接至飞书服务器，请稍后重试！")
 	}
+
 	defer func() {
 		err2 := res.Body.Close()
 		if err2 != nil {
@@ -84,6 +88,7 @@ func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	req, err = http.NewRequest("GET", "https://passport.feishu.cn/suite/passport/oauth/userinfo", nil)
 	if err != nil {
 		return nil, err
@@ -91,15 +96,17 @@ func (h *LarkUserHandler) getLarkUserInfoByCode(code string) (*LarkUser, error) 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oAuthResponse.AccessToken))
 	res2, err := client.Do(req)
 	if err != nil {
-		slog.Info(err.Error())
+		slog.Error("failed to get lark user by code", slog.String("error", err.Error()))
 		return nil, errors.New("无法连接至飞书服务器，请稍后重试！")
 	}
-	var larkUser LarkUser
-	err = json.NewDecoder(res2.Body).Decode(&larkUser)
+
+	larkUser := &LarkUser{}
+	err = json.NewDecoder(res2.Body).Decode(larkUser)
 	if err != nil {
 		return nil, err
 	}
-	return &larkUser, nil
+
+	return larkUser, nil
 }
 
 func (h *LarkUserHandler) LarkOAuth(c *gin.Context) {
@@ -176,7 +183,8 @@ func (h *LarkUserHandler) LarkOAuth(c *gin.Context) {
 		})
 		return
 	}
-	SetupLogin(user, c)
+
+	setupLogin(user, c)
 }
 
 func (h *LarkUserHandler) LarkBind(c *gin.Context, currentUser *entity.User) {
@@ -189,6 +197,7 @@ func (h *LarkUserHandler) LarkBind(c *gin.Context, currentUser *entity.User) {
 		})
 		return
 	}
+
 	if h.userService.IsLarkIdAlreadyTaken(larkUser.OpenID) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

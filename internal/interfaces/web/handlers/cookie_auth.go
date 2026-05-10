@@ -10,16 +10,18 @@ import (
 	"hermes-ai/internal/infras/logger"
 )
 
-const authCookieName = "access_token"
-const authCookieMaxAge = 30 * 24 * 60 * 60 // 30 days
+const (
+	authCookieName   = "access_token"
+	authCookieMaxAge = 30 * 24 * 60 * 60 // 30 days
+)
 
-// SetAuthCookie 设置认证 Cookie
-func SetAuthCookie(c *gin.Context, token string) {
+// setAuthCookie 设置认证 Cookie
+func setAuthCookie(c *gin.Context, token string) {
 	c.SetCookie(authCookieName, token, authCookieMaxAge, "/", "", false, true)
 }
 
-// ClearAuthCookie 清除认证 Cookie
-func ClearAuthCookie(c *gin.Context) {
+// clearAuthCookie 清除认证 Cookie
+func clearAuthCookie(c *gin.Context) {
 	c.SetCookie(authCookieName, "", -1, "/", "", false, true)
 }
 

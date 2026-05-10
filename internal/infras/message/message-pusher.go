@@ -26,14 +26,20 @@ type response struct {
 	Message string `json:"message"`
 }
 
-func SendMessagePusher(cfg MessagePusherConfig, title, description, content string) error {
+type MessageContent struct {
+	Title       string
+	Description string
+	Content     string
+}
+
+func SendMessagePusher(cfg MessagePusherConfig, msg MessageContent) error {
 	if cfg.Address == "" {
 		return errors.New("message pusher address is not set")
 	}
 	req := request{
-		Title:       title,
-		Description: description,
-		Content:     content,
+		Title:       msg.Title,
+		Description: msg.Description,
+		Content:     msg.Content,
 		Token:       cfg.Token,
 	}
 	data, err := json.Marshal(req)

@@ -34,13 +34,13 @@ type OidcUser struct {
 }
 
 type OidcUserConfig struct {
-	OidcClientId          string
-	OidcClientSecret      string
-	ServerAddress         string
-	OidcTokenEndpoint     string
-	OidcUserinfoEndpoint  string
-	OidcEnabled           bool
-	RegisterEnabled       bool
+	OidcClientId         string
+	OidcClientSecret     string
+	ServerAddress        string
+	OidcTokenEndpoint    string
+	OidcUserinfoEndpoint string
+	OidcEnabled          bool
+	RegisterEnabled      bool
 }
 
 type OidcUserHandler struct {
@@ -111,7 +111,7 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 	state := c.Query("state")
 	cookieState, _ := c.Cookie("oauth_state")
 	if state == "" || cookieState == "" || state != cookieState {
-		c.JSON(http.StatusForbidden, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
 		})
@@ -192,7 +192,8 @@ func (h *OidcUserHandler) OidcAuth(c *gin.Context) {
 		})
 		return
 	}
-	SetupLogin(user, c)
+
+	setupLogin(user, c)
 }
 
 func (h *OidcUserHandler) OidcBind(c *gin.Context, currentUser *entity.User) {

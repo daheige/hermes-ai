@@ -8,7 +8,7 @@ import (
 	"hermes-ai/internal/interfaces/web/middleware"
 )
 
-func SetDashboardRouter(router *gin.Engine, h *handlers.HandlerContainers, mw *middleware.Middlewares) {
+func setDashboardRouter(router *gin.Engine, h *handlers.HandlerContainers, mw *middleware.Middlewares) {
 	apiRouter := router.Group("/")
 	apiRouter.Use(middleware.CORS())
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))

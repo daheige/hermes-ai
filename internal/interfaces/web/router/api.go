@@ -8,8 +8,8 @@ import (
 	"hermes-ai/internal/interfaces/web/middleware"
 )
 
-// SetApiRouter 设置API路由
-func SetApiRouter(router *gin.Engine, h *handlers.HandlerContainers, mw *middleware.Middlewares) {
+// setApiRouter 设置API路由
+func setApiRouter(router *gin.Engine, h *handlers.HandlerContainers, mw *middleware.Middlewares) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(mw.RateLimitMiddleware.GlobalAPIRateLimit())

@@ -25,10 +25,15 @@ type ModelHandler struct {
 
 // NewModelHandler 创建模型处理器
 func NewModelHandler(userService *application.UserService, channelService *application.ChannelService) *ModelHandler {
-	return &ModelHandler{
+	handler := &ModelHandler{
 		userService:    userService,
 		channelService: channelService,
 	}
+
+	// 初始化操作
+	handler.init()
+
+	return handler
 }
 
 // OpenAIModelPermission OpenAI模型权限
@@ -58,11 +63,13 @@ type OpenAIModels struct {
 	Parent     *string                 `json:"parent"`
 }
 
-var models []OpenAIModels
-var modelsMap map[string]OpenAIModels
-var channelId2Models map[int][]string
+var (
+	models           []OpenAIModels
+	modelsMap        map[string]OpenAIModels
+	channelId2Models map[int][]string
+)
 
-func init() {
+func (h *ModelHandler) init() {
 	var permission []OpenAIModelPermission
 	permission = append(permission, OpenAIModelPermission{
 		Id:                 "modelperm-LwHkVFn8AcMItP432fKKDIKJ",
@@ -78,6 +85,7 @@ func init() {
 		Group:              nil,
 		IsBlocking:         false,
 	})
+
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
 	factory := relay.NewAdaptorFactory(nil)
 	for i := 0; i < apitype.Dummy; i++ {
@@ -157,7 +165,7 @@ func (h *ModelHandler) ListModels(c *gin.Context) {
 	} else {
 		userId := c.GetInt(ctxkey.Id)
 		userGroup, _ := h.userService.CacheGetUserGroup(userId)
-		availableModels, _ = h.channelService.CacheGetGroupModels(ctx, userGroup)
+		availableModels, _ = h.channelService.GetVailGroupModels(ctx, userGroup)
 	}
 	modelSet := make(map[string]bool)
 	for _, availableModel := range availableModels {
@@ -182,6 +190,7 @@ func (h *ModelHandler) ListModels(c *gin.Context) {
 			})
 		}
 	}
+
 	c.JSON(200, gin.H{
 		"object": "list",
 		"data":   availableOpenAIModels,
@@ -218,7 +227,8 @@ func (h *ModelHandler) GetUserAvailableModels(c *gin.Context) {
 		})
 		return
 	}
-	models, err := h.channelService.CacheGetGroupModels(ctx, userGroup)
+
+	channelModels, err := h.channelService.GetVailGroupModels(ctx, userGroup)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -229,6 +239,6 @@ func (h *ModelHandler) GetUserAvailableModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    channelModels,
 	})
 }

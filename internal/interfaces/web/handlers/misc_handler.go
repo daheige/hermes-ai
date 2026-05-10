@@ -59,7 +59,7 @@ func NewMiscHandler(userService *application.UserService, optionService *applica
 func (h *MiscHandler) GetStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data": gin.H{
 			"version":                     "1.0.1",
 			"start_time":                  time.Now().Unix(),
@@ -93,7 +93,7 @@ func (h *MiscHandler) GetStatus(c *gin.Context) {
 func (h *MiscHandler) GetNotice(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    h.optionService.GetOptionValue("Notice"),
 	})
 }
@@ -102,7 +102,7 @@ func (h *MiscHandler) GetNotice(c *gin.Context) {
 func (h *MiscHandler) GetAbout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    h.optionService.GetOptionValue("About"),
 	})
 }
@@ -111,29 +111,35 @@ func (h *MiscHandler) GetAbout(c *gin.Context) {
 func (h *MiscHandler) GetHomePageContent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    h.optionService.GetOptionValue("HomePageContent"),
 	})
 }
 
+type SendEmailRequest struct {
+	Email string `json:"email" binding:"required,email" form:"form"`
+}
+
 // SendEmailVerification 发送邮箱验证邮件
 func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
-	email := c.Query("email")
-	if err := validate.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	var req SendEmailRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
 		})
 		return
 	}
+
 	if h.EmailDomainRestrictionEnabled {
 		allowed := false
 		for _, domain := range h.EmailDomainWhitelist {
-			if strings.HasSuffix(email, "@"+domain) {
+			if strings.HasSuffix(req.Email, "@"+domain) {
 				allowed = true
 				break
 			}
 		}
+
 		if !allowed {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -142,7 +148,8 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 			return
 		}
 	}
-	if h.userService.IsEmailAlreadyTaken(email) {
+
+	if h.userService.IsEmailAlreadyTaken(req.Email) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "邮箱地址已被占用",
@@ -151,7 +158,7 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 	}
 
 	code := validate.GenerateVerificationCode(6)
-	validate.RegisterVerificationCodeWithKey(email, code, validate.EmailVerificationPurpose)
+	validate.RegisterVerificationCodeWithKey(req.Email, code, validate.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s 邮箱验证邮件", h.SystemName)
 	content := message2.EmailTemplate(
 		h.SystemName,
@@ -164,7 +171,12 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 			<p style="color: #666;">验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>
 		`, h.SystemName, code, validate.VerificationValidMinutes),
 	)
-	err := message2.SendEmail(h.SMTPConfig, h.SystemName, subject, email, content)
+	err := message2.SendEmail(h.SMTPConfig, message2.EmailMessage{
+		SystemName: h.SystemName,
+		Subject:    subject,
+		Receiver:   req.Email,
+		Content:    content,
+	})
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -174,21 +186,21 @@ func (h *MiscHandler) SendEmailVerification(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // SendPasswordResetEmail 发送密码重置邮件
 func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
-	email := c.Query("email")
-	if err := validate.Validate.Var(email, "required,email"); err != nil {
+	var req SendEmailRequest
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
 		})
 		return
 	}
-	if !h.userService.IsEmailAlreadyTaken(email) {
+	if !h.userService.IsEmailAlreadyTaken(req.Email) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "该邮箱地址未注册",
@@ -197,8 +209,8 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 	}
 
 	code := validate.GenerateVerificationCode(0)
-	validate.RegisterVerificationCodeWithKey(email, code, validate.PasswordResetPurpose)
-	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", h.ServerAddress, email, code)
+	validate.RegisterVerificationCodeWithKey(req.Email, code, validate.PasswordResetPurpose)
+	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", h.ServerAddress, req.Email, code)
 	subject := fmt.Sprintf("%s 密码重置", h.SystemName)
 	content := message2.EmailTemplate(
 		h.SystemName,
@@ -215,7 +227,12 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 			<p style="color: #666;">重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>
 		`, h.SystemName, link, link, validate.VerificationValidMinutes),
 	)
-	err := message2.SendEmail(h.SMTPConfig, h.SystemName, subject, email, content)
+	err := message2.SendEmail(h.SMTPConfig, message2.EmailMessage{
+		SystemName: h.SystemName,
+		Subject:    subject,
+		Receiver:   req.Email,
+		Content:    content,
+	})
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -223,22 +240,23 @@ func (h *MiscHandler) SendPasswordResetEmail(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // PasswordResetRequest 密码重置请求
 type PasswordResetRequest struct {
-	Email string `json:"email" binding:"required,email"`
-	Token string `json:"token" binding:"required"`
+	Email string `json:"email" form:"email" binding:"required,email"`
+	Token string `json:"token" form:"token" binding:"required"`
 }
 
 // ResetPassword 重置密码
 func (h *MiscHandler) ResetPassword(c *gin.Context) {
 	var req PasswordResetRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),

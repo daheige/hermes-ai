@@ -20,7 +20,8 @@ type DistributorMiddleware struct {
 	channelService *application.ChannelService
 }
 
-func NewDistributorMiddleware(userService *application.UserService, channelService *application.ChannelService) *DistributorMiddleware {
+func NewDistributorMiddleware(userService *application.UserService,
+	channelService *application.ChannelService) *DistributorMiddleware {
 	return &DistributorMiddleware{userService: userService, channelService: channelService}
 }
 

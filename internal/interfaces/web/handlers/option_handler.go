@@ -36,7 +36,7 @@ func NewOptionHandler(service *application.OptionService, conf OptionConfig) *Op
 // GetOptions 获取所有配置选项
 func (h *OptionHandler) GetOptions(c *gin.Context) {
 	optionMap := h.service.GetAllOptions()
-	var options []*entity.Option
+	options := make([]*entity.Option, 0, len(optionMap))
 	for k, v := range optionMap {
 		if strings.HasSuffix(k, "Token") || strings.HasSuffix(k, "Secret") {
 			continue
@@ -57,14 +57,14 @@ func (h *OptionHandler) GetOptions(c *gin.Context) {
 
 // OptionUpdateRequest 配置更新请求
 type OptionUpdateRequest struct {
-	Key   string `json:"key" binding:"required"`
-	Value string `json:"value"`
+	Key   string `json:"key" form:"key" binding:"required"`
+	Value string `json:"value" form:"value"`
 }
 
 // UpdateOption 更新配置选项
 func (h *OptionHandler) UpdateOption(c *gin.Context) {
 	var req OptionUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),

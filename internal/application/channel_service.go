@@ -177,8 +177,8 @@ func (s *ChannelService) GetGroupModels(ctx context.Context, group string) ([]st
 	return s.abilityRepo.GetGroupModels(ctx, group)
 }
 
-// CacheGetGroupModels 带缓存的获取分组可用模型列表
-func (s *ChannelService) CacheGetGroupModels(ctx context.Context, group string) ([]string, error) {
+// GetVailGroupModels 带缓存的获取分组可用模型列表
+func (s *ChannelService) GetVailGroupModels(ctx context.Context, group string) ([]string, error) {
 	if !s.cacheRepo.IsEnabled() {
 		return s.GetGroupModels(ctx, group)
 	}
@@ -186,15 +186,18 @@ func (s *ChannelService) CacheGetGroupModels(ctx context.Context, group string) 
 	if err == nil {
 		return strings.Split(modelsStr, ","), nil
 	}
+
 	models, err := s.GetGroupModels(ctx, group)
 	if err != nil {
 		return nil, err
 	}
+
 	cacheErr := s.cacheRepo.Set("group_models:"+group, strings.Join(models, ","),
-		time.Duration(s.syncFrequency)*time.Second)
+		30*time.Second)
 	if cacheErr != nil {
 		slog.Error("Redis set group models error: " + cacheErr.Error())
 	}
+
 	return models, nil
 }
 

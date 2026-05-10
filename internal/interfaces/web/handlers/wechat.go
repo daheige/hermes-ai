@@ -132,7 +132,7 @@ func (h *WeChatUserHandler) WeChatAuth(c *gin.Context) {
 		return
 	}
 
-	SetupLogin(user, c)
+	setupLogin(user, c)
 }
 
 func (h *WeChatUserHandler) WeChatBind(c *gin.Context) {

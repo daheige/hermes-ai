@@ -66,16 +66,23 @@ func NewHandlerContainer(
 	metricCollector *monitor2.MetricCollector,
 	p *HandlerParams,
 ) *HandlerContainers {
-	return &HandlerContainers{
-		TokenHandler: NewTokenHandler(services.TokenService, p.ItemsPerPage),
-		UserHandler: NewUserHandler(
-			services.UserService, services.LogService, services.RedemptionService,
-			&UserHandlerParams{
-				itemsPerPage:             p.ItemsPerPage,
-				quotaPerUnit:             p.QuotaPerUnit,
-				displayInCurrencyEnabled: p.DisplayInCurrencyEnabled,
-			},
-		),
+	billParams := &BillingHandlerParams{
+		userService:              services.UserService,
+		tokenService:             services.TokenService,
+		displayTokenStatEnabled:  p.DisplayTokenStatEnabled,
+		displayInCurrencyEnabled: p.DisplayInCurrencyEnabled,
+		quotaPerUnit:             p.QuotaPerUnit,
+	}
+
+	userHandlerParams := &UserHandlerParams{
+		itemsPerPage:             p.ItemsPerPage,
+		quotaPerUnit:             p.QuotaPerUnit,
+		displayInCurrencyEnabled: p.DisplayInCurrencyEnabled,
+	}
+
+	hc := &HandlerContainers{
+		TokenHandler:   NewTokenHandler(services.TokenService, p.ItemsPerPage),
+		UserHandler:    NewUserHandler(userHandlerParams),
 		ChannelHandler: NewChannelHandler(services.ChannelService, p.ItemsPerPage),
 		LogHandler:     NewLogHandler(services.LogService, p.ItemsPerPage),
 		OptionHandler: NewOptionHandler(services.OptionService, OptionConfig{
@@ -88,24 +95,22 @@ func NewHandlerContainer(
 		RedemptionHandler: NewRedemptionHandler(services.RedemptionService, p.ItemsPerPage),
 		MiscHandler:       NewMiscHandler(services.UserService, services.OptionService, p.MiscConfig),
 		AuthHandler:       NewAuthHandler(services.UserService, p.AuthConfig),
-		ChannelTestHandler: NewChannelTestHandler(
-			services.ChannelService,
-			services.LogService,
-			services.UserService,
-			channelMonitor,
-			adaptorFactory,
-			p.TestPrompt,
-			p.ChannelDisableThreshold,
-			p.AutomaticDisableChannelEnabled,
-			p.RequestInterval,
-		),
+		ChannelTestHandler: NewChannelTestHandler(ChannelTestHandlerDeps{
+			Service:        services.ChannelService,
+			LogService:     services.LogService,
+			UserService:    services.UserService,
+			ChannelMonitor: channelMonitor,
+			AdaptorFactory: adaptorFactory,
+		}, ChannelTestHandlerConfig{
+			TestPrompt:                     p.TestPrompt,
+			ChannelDisableThreshold:        p.ChannelDisableThreshold,
+			AutomaticDisableChannelEnabled: p.AutomaticDisableChannelEnabled,
+			RequestInterval:                p.RequestInterval,
+		}),
 		ChannelBillingHandler: NewChannelBillingHandler(services.ChannelService, channelMonitor, p.RequestInterval),
-		BillingHandler: NewBillingHandler(
-			services.UserService, services.TokenService,
-			p.DisplayTokenStatEnabled, p.DisplayInCurrencyEnabled, p.QuotaPerUnit,
-		),
-		ModelHandler:      NewModelHandler(services.UserService, services.ChannelService),
-		GroupHandler:      NewGroupHandler(),
+		BillingHandler:        NewBillingHandler(billParams),
+		ModelHandler:          NewModelHandler(services.UserService, services.ChannelService),
+		GroupHandler:          NewGroupHandler(),
 		RelayHandler: NewRelayHandler(RelayHandlerDeps{
 			ChannelService:  services.ChannelService,
 			ChannelMonitor:  channelMonitor,
@@ -123,4 +128,6 @@ func NewHandlerContainer(
 		OidcUserHandler:   NewOidcUserHandler(services.UserService, p.OidcUserConfig),
 		WeChatUserHandler: NewWechatLoginHandler(services.UserService, p.WeChatUserConfig),
 	}
+
+	return hc
 }

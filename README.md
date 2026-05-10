@@ -26,8 +26,15 @@ AI LLM大模型网关系统，支持多租户管理、API Key管理、限流、�
 - Gin Web框架
 - GORM ORM
 - Redis缓存
-- MySQL数据库
+- MySQL/PostgreSQL数据库
 - JWT认证
+
+## 架构特点
+
+- **显式配置管理**：所有环境变量统一收敛到 `SystemConfig` 结构体，通过 `InitSystemConfig()` 显式初始化，彻底消除全局配置变量
+- **依赖注入**：服务、仓库、中间件、Handler 均通过构造函数注入依赖，便于测试和替换实现
+- **分层设计**：严格遵循 DDD 分层（Domain / Application / Infrastructure / Interfaces），职责边界清晰
+- **AES-GCM 加密**：支持对 tokens、redemptions、channels 的 key 字段进行加密存储，保护敏感信息
 
 ## 快速开始
 
@@ -42,10 +49,10 @@ go mod tidy
 source db.sql
 ```
 
-3. 配置数据库
-   修改 `.env` 中的数据库和redis连接信息
+3. 配置环境变量
+   复制 `.env.example` 为 `.env`，修改数据库、Redis 连接信息，并设置 `AES_SECRET_KEY`（建议至少 16 字符的随机字符串，用于加密敏感字段）
 
-3. 运行
+4. 运行
 ```bash
 go run main.go
 ```

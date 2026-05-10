@@ -19,6 +19,7 @@ func Language() gin.HandlerFunc {
 		} else {
 			lang = "en"
 		}
+		
 		c.Set(i18n.ContextKey, lang)
 		c.Next()
 	}

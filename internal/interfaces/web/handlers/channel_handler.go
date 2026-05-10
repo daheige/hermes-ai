@@ -66,7 +66,7 @@ func (h *ChannelHandler) SearchChannels(c *gin.Context) {
 func (h *ChannelHandler) GetChannel(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
@@ -90,21 +90,21 @@ func (h *ChannelHandler) GetChannel(c *gin.Context) {
 
 // ChannelCreateRequest 渠道创建请求
 type ChannelCreateRequest struct {
-	Type         int     `json:"type" binding:"required"`
-	Key          string  `json:"key" binding:"required"`
-	Name         string  `json:"name" binding:"required"`
-	BaseURL      string  `json:"base_url"`
-	Models       string  `json:"models"`
-	Group        string  `json:"group"`
-	ModelMapping *string `json:"model_mapping"`
-	Status       int     `json:"status"`
+	Type         int     `json:"type" form:"type" binding:"required"`
+	Key          string  `json:"key" form:"key" binding:"required"`
+	Name         string  `json:"name" form:"name" binding:"required"`
+	BaseURL      string  `json:"base_url" form:"base_url"`
+	Models       string  `json:"models" form:"models"`
+	Group        string  `json:"group" form:"group"`
+	ModelMapping *string `json:"model_mapping" form:"model_mapping"`
+	Status       int     `json:"status" form:"status"`
 }
 
 // AddChannel 添加渠道
 func (h *ChannelHandler) AddChannel(c *gin.Context) {
 	var req ChannelCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
@@ -157,6 +157,7 @@ func (h *ChannelHandler) DeleteChannel(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -173,6 +174,7 @@ func (h *ChannelHandler) DeleteDisabledChannel(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -182,22 +184,22 @@ func (h *ChannelHandler) DeleteDisabledChannel(c *gin.Context) {
 
 // ChannelUpdateRequest 渠道更新请求
 type ChannelUpdateRequest struct {
-	ID           int     `json:"id" binding:"required"`
-	Type         int     `json:"type"`
-	Key          string  `json:"key"`
-	Name         string  `json:"name"`
-	BaseURL      string  `json:"base_url"`
-	Models       string  `json:"models"`
-	Group        string  `json:"group"`
-	ModelMapping *string `json:"model_mapping"`
-	Status       int     `json:"status"`
+	ID           int     `json:"id" form:"id" binding:"required"`
+	Type         int     `json:"type" form:"type"`
+	Key          string  `json:"key" form:"key"`
+	Name         string  `json:"name" form:"name"`
+	BaseURL      string  `json:"base_url" form:"base_url"`
+	Models       string  `json:"models" form:"models"`
+	Group        string  `json:"group" form:"group"`
+	ModelMapping *string `json:"model_mapping" form:"model_mapping"`
+	Status       int     `json:"status" form:"status"`
 }
 
 // UpdateChannel 更新渠道
 func (h *ChannelHandler) UpdateChannel(c *gin.Context) {
 	var req ChannelUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})

@@ -11,31 +11,41 @@ import (
 
 // BillingHandler 账单处理器
 type BillingHandler struct {
-	userService            *application.UserService
-	tokenService           *application.TokenService
-	displayTokenStatEnabled bool
+	userService              *application.UserService
+	tokenService             *application.TokenService
+	displayTokenStatEnabled  bool
 	displayInCurrencyEnabled bool
-	quotaPerUnit           float64
+	quotaPerUnit             float64
+}
+
+type BillingHandlerParams struct {
+	userService              *application.UserService
+	tokenService             *application.TokenService
+	displayTokenStatEnabled  bool
+	displayInCurrencyEnabled bool
+	quotaPerUnit             float64
 }
 
 // NewBillingHandler 创建账单处理器
-func NewBillingHandler(userService *application.UserService, tokenService *application.TokenService, displayTokenStatEnabled bool, displayInCurrencyEnabled bool, quotaPerUnit float64) *BillingHandler {
+func NewBillingHandler(p *BillingHandlerParams) *BillingHandler {
 	return &BillingHandler{
-		userService:              userService,
-		tokenService:             tokenService,
-		displayTokenStatEnabled:  displayTokenStatEnabled,
-		displayInCurrencyEnabled: displayInCurrencyEnabled,
-		quotaPerUnit:             quotaPerUnit,
+		userService:              p.userService,
+		tokenService:             p.tokenService,
+		displayTokenStatEnabled:  p.displayTokenStatEnabled,
+		displayInCurrencyEnabled: p.displayInCurrencyEnabled,
+		quotaPerUnit:             p.quotaPerUnit,
 	}
 }
 
 // GetSubscription 获取订阅信息
 func (h *BillingHandler) GetSubscription(c *gin.Context) {
-	var remainQuota int64
-	var usedQuota int64
-	var err error
-	var token *entity.Token
-	var expiredTime int64
+	var (
+		remainQuota int64
+		usedQuota   int64
+		err         error
+		token       *entity.Token
+		expiredTime int64
+	)
 	if h.displayTokenStatEnabled {
 		tokenId := c.GetInt(ctxkey.TokenId)
 		token, err = h.tokenService.GetTokenById(tokenId)
@@ -85,9 +95,11 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 
 // GetUsage 获取使用情况
 func (h *BillingHandler) GetUsage(c *gin.Context) {
-	var quota int64
-	var err error
-	var token *entity.Token
+	var (
+		quota int64
+		err   error
+		token *entity.Token
+	)
 	if h.displayTokenStatEnabled {
 		tokenId := c.GetInt(ctxkey.TokenId)
 		token, err = h.tokenService.GetTokenById(tokenId)
@@ -110,6 +122,7 @@ func (h *BillingHandler) GetUsage(c *gin.Context) {
 	if h.displayInCurrencyEnabled {
 		amount /= h.quotaPerUnit
 	}
+
 	usage := OpenAIUsageResponse{
 		Object:     "list",
 		TotalUsage: amount * 100,

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,13 +18,14 @@ import (
 
 // UserHandler 用户处理器
 type UserHandler struct {
-	service           *application.UserService
-	logService        *application.LogService
-	redemptionService *application.RedemptionService
 	*UserHandlerParams
 }
 
 type UserHandlerParams struct {
+	userService       *application.UserService
+	logService        *application.LogService
+	redemptionService *application.RedemptionService
+
 	itemsPerPage             int
 	quotaPerUnit             float64
 	displayInCurrencyEnabled bool
@@ -33,15 +33,9 @@ type UserHandlerParams struct {
 
 // NewUserHandler 创建用户处理器
 func NewUserHandler(
-	service *application.UserService,
-	logService *application.LogService,
-	redemptionService *application.RedemptionService,
 	userHandlerParams *UserHandlerParams,
 ) *UserHandler {
 	return &UserHandler{
-		service:           service,
-		logService:        logService,
-		redemptionService: redemptionService,
 		UserHandlerParams: userHandlerParams,
 	}
 }
@@ -54,7 +48,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	order := c.DefaultQuery("order", "")
-	users, err := h.service.GetAllUsers(p*h.itemsPerPage, h.itemsPerPage, order)
+	users, err := h.userService.GetAllUsers(p*h.itemsPerPage, h.itemsPerPage, order)
 
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -66,7 +60,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    users,
 	})
 }
@@ -74,7 +68,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 // SearchUsers 搜索用户
 func (h *UserHandler) SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
-	users, err := h.service.SearchUsers(keyword)
+	users, err := h.userService.SearchUsers(keyword)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -84,7 +78,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    users,
 	})
 }
@@ -99,7 +93,8 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		})
 		return
 	}
-	user, err := h.service.GetUserById(id, false)
+
+	user, err := h.userService.GetUserById(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -117,7 +112,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    user,
 	})
 }
@@ -144,7 +139,7 @@ func (h *UserHandler) GetUserDashboard(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    dashboards,
 	})
 }
@@ -152,7 +147,7 @@ func (h *UserHandler) GetUserDashboard(c *gin.Context) {
 // GenerateAccessToken 生成访问令牌
 func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
-	user, err := h.service.GetUserById(id, true)
+	user, err := h.userService.GetUserById(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -162,7 +157,7 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 	}
 	user.AccessToken = utils.UUID()
 
-	userEntry, _ := h.service.ValidateAccessToken(user.AccessToken)
+	userEntry, _ := h.userService.ValidateAccessToken(user.AccessToken)
 	if userEntry != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -171,7 +166,7 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 		return
 	}
 
-	err = h.service.Update(user, false)
+	err = h.userService.Update(user, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -180,11 +175,11 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 		return
 	}
 
-	SetAuthCookie(c, user.AccessToken)
+	setAuthCookie(c, user.AccessToken)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    user.AccessToken,
 	})
 }
@@ -192,7 +187,7 @@ func (h *UserHandler) GenerateAccessToken(c *gin.Context) {
 // GetAffCode 获取邀请码
 func (h *UserHandler) GetAffCode(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
-	user, err := h.service.GetUserById(id, true)
+	user, err := h.userService.GetUserById(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -202,7 +197,7 @@ func (h *UserHandler) GetAffCode(c *gin.Context) {
 	}
 	if user.AffCode == "" {
 		user.AffCode = utils.GetRandomString(4)
-		if err := h.service.Update(user, false); err != nil {
+		if err := h.userService.Update(user, false); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
@@ -212,7 +207,7 @@ func (h *UserHandler) GetAffCode(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    user.AffCode,
 	})
 }
@@ -220,7 +215,7 @@ func (h *UserHandler) GetAffCode(c *gin.Context) {
 // GetSelf 获取当前用户信息
 func (h *UserHandler) GetSelf(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
-	user, err := h.service.GetUserById(id, false)
+	user, err := h.userService.GetUserById(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -230,45 +225,37 @@ func (h *UserHandler) GetSelf(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    user,
 	})
 }
 
 // UserUpdateRequest 用户更新请求
 type UserUpdateRequest struct {
-	ID          int    `json:"id" binding:"required"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
-	Quota       int64  `json:"quota"`
-	Role        int    `json:"role"`
+	ID          int    `json:"id" form:"id" binding:"required"`
+	Username    string `json:"username" form:"username"`
+	Password    string `json:"password" form:"password"`
+	DisplayName string `json:"display_name" form:"display_name"`
+	Quota       int64  `json:"quota" form:"quota"`
+	Role        int    `json:"role" form:"role"`
 }
 
 // UpdateUser 更新用户
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req UserUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
 		})
 		return
 	}
-
 	if req.Password == "" {
 		req.Password = "$I_LOVE_U" // make Validator happy :)
 	}
-	if err := validate.Validate.Struct(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": i18n.Translate(c, "invalid_input"),
-		})
-		return
-	}
 
-	originUser, err := h.service.GetUserById(req.ID, false)
+	originUser, err := h.userService.GetUserById(req.ID, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -306,7 +293,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		updatedUser.Password = req.Password
 	}
 
-	if err := h.service.Update(updatedUser, updatePassword); err != nil {
+	if err := h.userService.Update(updatedUser, updatePassword); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -323,36 +310,30 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // UserSelfUpdateRequest 当前用户更新请求
 type UserSelfUpdateRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	Username    string `json:"username" form:"username"`
+	Password    string `json:"password" form:"password"`
+	DisplayName string `json:"display_name" form:"display_name"`
 }
 
 // UpdateSelf 更新当前用户信息
 func (h *UserHandler) UpdateSelf(c *gin.Context) {
 	var req UserSelfUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
 		})
 		return
 	}
+
 	if req.Password == "" {
 		req.Password = "$I_LOVE_U" // make Validator happy :)
-	}
-	if err := validate.Validate.Struct(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "输入不合法 " + err.Error(),
-		})
-		return
 	}
 
 	cleanUser := &entity.User{
@@ -365,7 +346,7 @@ func (h *UserHandler) UpdateSelf(c *gin.Context) {
 		cleanUser.Password = req.Password
 	}
 
-	if err := h.service.Update(cleanUser, updatePassword); err != nil {
+	if err := h.userService.Update(cleanUser, updatePassword); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -375,7 +356,7 @@ func (h *UserHandler) UpdateSelf(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
@@ -389,7 +370,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		})
 		return
 	}
-	originUser, err := h.service.GetUserById(id, false)
+	originUser, err := h.userService.GetUserById(id, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -405,7 +386,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		})
 		return
 	}
-	err = h.service.DeleteUserById(id)
+	err = h.userService.DeleteUserById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -415,14 +396,14 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // DeleteSelf 删除当前用户
 func (h *UserHandler) DeleteSelf(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
-	user, _ := h.service.GetUserById(id, false)
+	user, _ := h.userService.GetUserById(id, false)
 
 	if user.Role == entity.RoleRootUser {
 		c.JSON(http.StatusOK, gin.H{
@@ -432,7 +413,7 @@ func (h *UserHandler) DeleteSelf(c *gin.Context) {
 		return
 	}
 
-	err := h.service.DeleteUserById(id)
+	err := h.userService.DeleteUserById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -442,36 +423,30 @@ func (h *UserHandler) DeleteSelf(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // UserCreateRequest 用户创建请求
 type UserCreateRequest struct {
-	Username    string `json:"username" binding:"required"`
-	Password    string `json:"password" binding:"required"`
-	DisplayName string `json:"display_name"`
-	Role        int    `json:"role"`
+	Username    string `json:"username" binding:"required" form:"username"`
+	Password    string `json:"password" binding:"required" form:"password"`
+	DisplayName string `json:"display_name" form:"display_name"`
+	Role        int    `json:"role" form:"role"`
 }
 
 // CreateUser 创建用户
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req UserCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
 		})
 		return
 	}
-	if err := validate.Validate.Struct(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": i18n.Translate(c, "invalid_input"),
-		})
-		return
-	}
+
 	if req.DisplayName == "" {
 		req.DisplayName = req.Username
 	}
@@ -489,7 +464,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		Password:    req.Password,
 		DisplayName: req.DisplayName,
 	}
-	if err := h.service.Insert(ctx, cleanUser, 0); err != nil {
+	if err := h.userService.Insert(ctx, cleanUser, 0); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -499,20 +474,20 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // UserManageRequest 用户管理请求
 type UserManageRequest struct {
-	Username string `json:"username" binding:"required"`
-	Action   string `json:"action" binding:"required"`
+	Username string `json:"username" binding:"required" form:"username"`
+	Action   string `json:"action" binding:"required" form:"action"`
 }
 
 // ManageUser 管理用户（仅管理员可操作）
 func (h *UserHandler) ManageUser(c *gin.Context) {
 	var req UserManageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
@@ -525,7 +500,7 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 	}
 
 	// Fill attributes
-	user, err := h.service.GetUserByName(req.Username)
+	user, err := h.userService.GetUserByName(req.Username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -571,8 +546,9 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 			})
 			return
 		}
-		log.Println("user id:", user.Id)
-		if err := h.service.DeleteUserById(user.Id); err != nil {
+
+		// log.Println("user id:", user.Id)
+		if err := h.userService.DeleteUserById(user.Id); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
@@ -613,20 +589,21 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 		user.Role = entity.RoleCommonUser
 	}
 
-	if err := h.service.Update(user, false); err != nil {
+	if err := h.userService.Update(user, false); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+
 	clearUser := &entity.User{
 		Role:   user.Role,
 		Status: user.Status,
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    clearUser,
 	})
 }
@@ -642,8 +619,9 @@ func (h *UserHandler) EmailBind(c *gin.Context) {
 		})
 		return
 	}
+
 	id := c.GetInt(ctxkey.Id)
-	user, err := h.service.FillUserById(id)
+	user, err := h.userService.FillUserById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -651,9 +629,10 @@ func (h *UserHandler) EmailBind(c *gin.Context) {
 		})
 		return
 	}
+
 	user.Email = email
 	// no need to check if this email already taken, because we have used verification code to check it
-	err = h.service.Update(user, false)
+	err = h.userService.Update(user, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -661,28 +640,30 @@ func (h *UserHandler) EmailBind(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // TopUpRequest 充值请求
 type TopUpRequest struct {
-	Key string `json:"key" binding:"required"`
+	Key string `json:"key" binding:"required" form:"key"`
 }
 
 // TopUp 用户充值
 func (h *UserHandler) TopUp(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req TopUpRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
+
 	id := c.GetInt(ctxkey.Id)
 	quota, err := h.redemptionService.Redeem(ctx, req.Key, id)
 	if err != nil {
@@ -695,30 +676,31 @@ func (h *UserHandler) TopUp(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    quota,
 	})
 }
 
 // AdminTopUpRequest 管理员充值请求
 type AdminTopUpRequest struct {
-	UserId int    `json:"user_id" binding:"required"`
-	Quota  int    `json:"quota" binding:"required"`
-	Remark string `json:"remark"`
+	UserId int    `json:"user_id" binding:"required" form:"user_id"`
+	Quota  int    `json:"quota" binding:"required" form:"quota"`
+	Remark string `json:"remark" form:"remark"`
 }
 
 // AdminTopUp 管理员给用户充值
 func (h *UserHandler) AdminTopUp(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req AdminTopUpRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	err := h.service.IncreaseUserQuota(req.UserId, int64(req.Quota))
+
+	err := h.userService.IncreaseUserQuota(req.UserId, int64(req.Quota))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -727,19 +709,21 @@ func (h *UserHandler) AdminTopUp(c *gin.Context) {
 		return
 	}
 	if req.Remark == "" {
-		req.Remark = fmt.Sprintf("通过 API 充值 %s", utils.LogQuota(int64(req.Quota), h.quotaPerUnit, h.displayInCurrencyEnabled))
+		req.Remark = fmt.Sprintf("通过 API 充值 %s", utils.LogQuota(
+			int64(req.Quota), h.quotaPerUnit, h.displayInCurrencyEnabled,
+		))
 	}
 
 	h.logService.RecordTopupLog(ctx, req.UserId, req.Remark, req.Quota)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
-// SetupLogin 设置登录会话并返回用户信息（供AuthHandler使用）
-func SetupLogin(user *entity.User, c *gin.Context) {
-	SetAuthCookie(c, user.AccessToken)
+// setupLogin 设置登录会话并返回用户信息（供AuthHandler使用）
+func setupLogin(user *entity.User, c *gin.Context) {
+	setAuthCookie(c, user.AccessToken)
 
 	// 清理敏感字段，避免返回给前端存入 localStorage
 	user.Password = ""
@@ -747,7 +731,7 @@ func SetupLogin(user *entity.User, c *gin.Context) {
 	user.VerificationCode = ""
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "",
+		"message": "ok",
 		"success": true,
 		"data":    user,
 	})

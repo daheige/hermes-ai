@@ -35,7 +35,6 @@ func (h *TokenHandler) GetAllTokens(c *gin.Context) {
 
 	order := c.Query("order")
 	tokens, err := h.service.GetAllUserTokens(userId, p*h.itemsPerPage, h.itemsPerPage, order)
-
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -45,7 +44,7 @@ func (h *TokenHandler) GetAllTokens(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    tokens,
 	})
 }
@@ -64,7 +63,7 @@ func (h *TokenHandler) SearchTokens(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    tokens,
 	})
 }
@@ -90,7 +89,7 @@ func (h *TokenHandler) GetToken(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    token,
 	})
 }
@@ -122,15 +121,15 @@ func (h *TokenHandler) GetTokenStatus(c *gin.Context) {
 
 // TokenCreateRequest 令牌创建请求
 type TokenCreateRequest struct {
-	Name           string  `json:"name" binding:"required,max=30"`
-	ExpiredTime    int64   `json:"expired_time"`
-	RemainQuota    int64   `json:"remain_quota"`
-	UnlimitedQuota bool    `json:"unlimited_quota"`
-	Models         *string `json:"models"`
-	Subnet         *string `json:"subnet"`
+	Name           string  `json:"name" form:"name" binding:"required,max=30"`
+	ExpiredTime    int64   `json:"expired_time" form:"expired_time"`
+	RemainQuota    int64   `json:"remain_quota" form:"remain_quota"`
+	UnlimitedQuota bool    `json:"unlimited_quota" form:"unlimited_quota"`
+	Models         *string `json:"models" form:"models"`
+	Subnet         *string `json:"subnet" form:"subnet"`
 }
 
-func (h *TokenHandler) validateToken(c *gin.Context, req TokenCreateRequest) error {
+func (h *TokenHandler) validateToken(req TokenCreateRequest) error {
 	if len(req.Name) > 30 {
 		return fmt.Errorf("令牌名称过长")
 	}
@@ -140,13 +139,14 @@ func (h *TokenHandler) validateToken(c *gin.Context, req TokenCreateRequest) err
 			return fmt.Errorf("无效的网段：%s", err.Error())
 		}
 	}
+
 	return nil
 }
 
 // AddToken 添加令牌
 func (h *TokenHandler) AddToken(c *gin.Context) {
 	var req TokenCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -154,7 +154,7 @@ func (h *TokenHandler) AddToken(c *gin.Context) {
 		return
 	}
 
-	err := h.validateToken(c, req)
+	err := h.validateToken(req)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -185,7 +185,7 @@ func (h *TokenHandler) AddToken(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    cleanToken,
 	})
 }
@@ -202,22 +202,23 @@ func (h *TokenHandler) DeleteToken(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 	})
 }
 
 // TokenUpdateRequest 令牌更新请求
 type TokenUpdateRequest struct {
-	ID             int     `json:"id" binding:"required"`
-	Name           string  `json:"name"`
-	ExpiredTime    int64   `json:"expired_time"`
-	RemainQuota    int64   `json:"remain_quota"`
-	UnlimitedQuota bool    `json:"unlimited_quota"`
-	Models         *string `json:"models"`
-	Subnet         *string `json:"subnet"`
-	Status         int     `json:"status"`
+	ID             int     `json:"id" form:"id" binding:"required"`
+	Name           string  `json:"name" form:"name"`
+	ExpiredTime    int64   `json:"expired_time" form:"expired_time"`
+	RemainQuota    int64   `json:"remain_quota" form:"remain_quota"`
+	UnlimitedQuota bool    `json:"unlimited_quota" form:"unlimited_quota"`
+	Models         *string `json:"models" form:"models"`
+	Subnet         *string `json:"subnet" form:"subnet"`
+	Status         int     `json:"status" form:"status"`
 }
 
 // UpdateToken 更新令牌
@@ -226,7 +227,7 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 	statusOnly := c.Query("status_only")
 
 	var req TokenUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -234,7 +235,7 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	err := h.validateToken(c, TokenCreateRequest{Name: req.Name, Subnet: req.Subnet})
+	err := h.validateToken(TokenCreateRequest{Name: req.Name, Subnet: req.Subnet})
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -290,7 +291,7 @@ func (h *TokenHandler) UpdateToken(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "ok",
 		"data":    cleanToken,
 	})
 }

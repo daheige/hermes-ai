@@ -80,6 +80,7 @@ redis://:@localhost:6379/0?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
 
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
+| `AES_SECRET_KEY` | string | - | AES-GCM 加密密钥，用于加密 tokens/redemptions/channels 的 key 字段。建议设置至少 16 字符的随机字符串，内部会用 SHA256 派生为 32 字节 AES-256 密钥 |
 | `INITIAL_ROOT_TOKEN` | string | - | 初始化 Root 用户 Token |
 | `INITIAL_ROOT_ACCESS_TOKEN` | string | - | 初始化 Root 用户 Access Token |
 
@@ -117,13 +118,6 @@ redis://:@localhost:6379/0?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
 | `METRIC_SUCCESS_RATE_THRESHOLD` | float | `0.8` | 成功率阈值 |
 | `METRIC_SUCCESS_CHAN_SIZE` | int | `1024` | 成功指标通道大小 |
 | `METRIC_FAIL_CHAN_SIZE` | int | `128` | 失败指标通道大小 |
-
-### Gemini 配置
-
-| 变量名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `GEMINI_SAFETY_SETTING` | string | `BLOCK_NONE` | Gemini 安全设置 |
-| `GEMINI_VERSION` | string | `v1` | Gemini API 版本 |
 
 ### 主题配置
 
@@ -190,6 +184,9 @@ SQL_DSN=root:password@tcp(localhost:3306)/ai_gateway
 # Redis（可选，但建议启用）
 REDIS_CONN_STRING=redis://:@localhost:6379/0
 SYNC_FREQUENCY=600
+
+# AES 加密密钥（建议设置，用于保护敏感字段）
+AES_SECRET_KEY=your-secret-key-here
 ```
 
 ### 生产环境配置
@@ -227,6 +224,9 @@ ENABLE_METRIC=true
 
 # 代理（如需要）
 RELAY_PROXY=http://proxy:8080
+
+# AES 加密密钥（生产环境务必设置强密钥）
+AES_SECRET_KEY=your-strong-random-secret-key-here
 ```
 
 ### 多节点部署配置
@@ -251,3 +251,4 @@ FRONTEND_BASE_URL=https://frontend.example.com
 2. **优先级**：环境变量优先级高于配置文件
 3. **热更新**：部分配置修改后需要重启服务才能生效
 4. **从节点**：从节点的 `FRONTEND_BASE_URL` 配置有效，主节点该配置会被忽略
+5. **AES 加密密钥**：`AES_SECRET_KEY` 用于加密数据库中 tokens、redemptions、channels 的 key 字段。建议生产环境设置至少 16 字符的强随机字符串，一旦设置请勿随意更改，否则已加密的字段将无法解密

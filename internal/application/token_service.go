@@ -237,7 +237,12 @@ func (s *TokenService) PreConsumeTokenQuota(tokenId int, quota int64) error {
 						<p style="background-color: #f8f8f8; padding: 10px; border-radius: 4px; word-break: break-all;">%s</p>
 					`, contentText, userQuota, topUpLink, topUpLink),
 				)
-				err = message2.SendEmail(s.SMTPConfig, s.SystemName, prompt, email, content)
+				err = message2.SendEmail(s.SMTPConfig, message2.EmailMessage{
+					SystemName: s.SystemName,
+					Subject:    prompt,
+					Receiver:   email,
+					Content:    content,
+				})
 				if err != nil {
 					slog.Error("failed to send email: " + err.Error())
 				}

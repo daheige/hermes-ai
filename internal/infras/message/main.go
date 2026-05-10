@@ -8,12 +8,32 @@ const (
 	ByMessagePusher = "message_pusher"
 )
 
-func Notify(rootEmail string, smtpCfg SMTPConfig, pusherCfg MessagePusherConfig, systemName, by, title, description, content string) error {
-	if by == ByEmail {
-		return SendEmail(smtpCfg, systemName, title, rootEmail, content)
+type NotifyParams struct {
+	RootEmail   string
+	SmtpCfg     SMTPConfig
+	PusherCfg   MessagePusherConfig
+	SystemName  string
+	By          string
+	Title       string
+	Description string
+	Content     string
+}
+
+func Notify(p NotifyParams) error {
+	if p.By == ByEmail {
+		return SendEmail(p.SmtpCfg, EmailMessage{
+			SystemName: p.SystemName,
+			Subject:    p.Title,
+			Receiver:   p.RootEmail,
+			Content:    p.Content,
+		})
 	}
-	if by == ByMessagePusher {
-		return SendMessagePusher(pusherCfg, title, description, content)
+	if p.By == ByMessagePusher {
+		return SendMessagePusher(p.PusherCfg, MessageContent{
+			Title:       p.Title,
+			Description: p.Description,
+			Content:     p.Content,
+		})
 	}
-	return fmt.Errorf("unknown notify method: %s", by)
+	return fmt.Errorf("unknown notify method: %s", p.By)
 }

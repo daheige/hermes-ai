@@ -15,7 +15,7 @@ import (
 	"hermes-ai/internal/interfaces/web/middleware"
 )
 
-func SetWebRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContainers,
+func setWebRouter(router *gin.Engine, buildFS embed.FS, hc *handlers.HandlerContainers,
 	mw *middleware.Middlewares, theme string) {
 	indexPageData, _ := buildFS.ReadFile(fmt.Sprintf("web/build/%s/index.html", theme))
 	router.Use(gzip.Gzip(gzip.DefaultCompression))

@@ -18,15 +18,16 @@ func RelayPanicRecover() gin.HandlerFunc {
 			if err := recover(); err != nil {
 				ctx := c.Request.Context()
 				requestID := logger.GetRequestID(ctx)
-				slog.With("request_id", requestID).
-					Error(fmt.Sprintf(
-						"request: %s path: %s panic detected: %v stack: %s",
-						c.Request.Method, c.Request.URL.Path, err, string(debug.Stack())),
-					)
-
 				body, _ := ginzo.GetRequestBody(c)
 				slog.With("request_id", requestID).
-					Error(fmt.Sprintf(fmt.Sprintf("request body: %s", string(body))))
+					Error("reply exec panic",
+						slog.String("error", fmt.Sprintf("%v", err)),
+						slog.String("stack", string(debug.Stack())),
+						slog.String("request_method", c.Request.Method),
+						slog.String("request_uri", c.Request.RequestURI),
+						slog.String("request_body", string(body)),
+					)
+
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": gin.H{
 						"message": fmt.Sprintf("Panic detected, error: %v", err),

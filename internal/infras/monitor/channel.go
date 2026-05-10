@@ -18,21 +18,36 @@ type ChannelMonitor struct {
 	rootEmail      string
 }
 
-func NewChannelMonitor(userService *application.UserService, channelService *application.ChannelService,
-	smtpCfg message.SMTPConfig, pusherCfg message.MessagePusherConfig, systemName, rootEmail string) *ChannelMonitor {
+type ChannelMonitorDeps struct {
+	UserService    *application.UserService
+	ChannelService *application.ChannelService
+}
+
+type ChannelMonitorConfig struct {
+	SmtpCfg    message.SMTPConfig
+	PusherCfg  message.MessagePusherConfig
+	SystemName string
+	RootEmail  string
+}
+
+func NewChannelMonitor(deps ChannelMonitorDeps, cfg ChannelMonitorConfig) *ChannelMonitor {
 	return &ChannelMonitor{
-		userService:    userService,
-		channelService: channelService,
-		smtpCfg:        smtpCfg,
-		pusherCfg:      pusherCfg,
-		systemName:     systemName,
-		rootEmail:      rootEmail,
+		userService:    deps.UserService,
+		channelService: deps.ChannelService,
+		smtpCfg:        cfg.SmtpCfg,
+		pusherCfg:      cfg.PusherCfg,
+		systemName:     cfg.SystemName,
+		rootEmail:      cfg.RootEmail,
 	}
 }
 
 func (monitor *ChannelMonitor) notifyRootUser(subject string, content string) {
 	if monitor.pusherCfg.Address != "" {
-		err := message.SendMessagePusher(monitor.pusherCfg, subject, content, content)
+		err := message.SendMessagePusher(monitor.pusherCfg, message.MessageContent{
+			Title:       subject,
+			Description: content,
+			Content:     content,
+		})
 		if err != nil {
 			slog.Error(fmt.Sprintf("failed to send message: %s", err.Error()))
 		} else {
@@ -40,7 +55,12 @@ func (monitor *ChannelMonitor) notifyRootUser(subject string, content string) {
 		}
 	}
 
-	err := message.SendEmail(monitor.smtpCfg, monitor.systemName, subject, monitor.userService.GetRootUserEmail(), content)
+	err := message.SendEmail(monitor.smtpCfg, message.EmailMessage{
+		SystemName: monitor.systemName,
+		Subject:    subject,
+		Receiver:   monitor.userService.GetRootUserEmail(),
+		Content:    content,
+	})
 	if err != nil {
 		slog.Error(fmt.Sprintf("failed to send email: %s", err.Error()))
 	}
@@ -69,9 +89,16 @@ func (monitor *ChannelMonitor) DisableChannel(channelId int, channelName string,
 	monitor.notifyRootUser(subject, content)
 }
 
-func (monitor *ChannelMonitor) MetricDisableChannel(channelId int, successRate float64, queueSize int, successRateThreshold float64) {
-	monitor.channelService.UpdateChannelStatusById(channelId, entity.ChannelStatusAutoDisabled)
-	slog.Info(fmt.Sprintf("channel #%d has been disabled due to low success rate: %.2f", channelId, successRate*100))
+type MetricDisableParams struct {
+	ChannelId            int
+	SuccessRate          float64
+	QueueSize            int
+	SuccessRateThreshold float64
+}
+
+func (monitor *ChannelMonitor) MetricDisableChannel(p MetricDisableParams) {
+	monitor.channelService.UpdateChannelStatusById(p.ChannelId, entity.ChannelStatusAutoDisabled)
+	slog.Info(fmt.Sprintf("channel #%d has been disabled due to low success rate: %.2f", p.ChannelId, p.SuccessRate*100))
 	subject := fmt.Sprintf("渠道状态变更提醒")
 	content := message.EmailTemplate(monitor.systemName,
 		subject,
@@ -80,7 +107,7 @@ func (monitor *ChannelMonitor) MetricDisableChannel(channelId int, successRate f
 			<p>渠道 #%d 已被系统自动禁用。</p>
 			<p>禁用原因：</p>
 			<p style="background-color: #f8f8f8; padding: 10px; border-radius: 4px;">该渠道在最近 %d 次调用中成功率为 <strong>%.2f%%</strong>，低于系统阈值 <strong>%.2f%%</strong>。</p>
-		`, channelId, queueSize, successRate*100, successRateThreshold*100),
+		`, p.ChannelId, p.QueueSize, p.SuccessRate*100, p.SuccessRateThreshold*100),
 	)
 	monitor.notifyRootUser(subject, content)
 }

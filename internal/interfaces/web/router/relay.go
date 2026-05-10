@@ -7,8 +7,8 @@ import (
 	"hermes-ai/internal/interfaces/web/middleware"
 )
 
-// SetRelayRouter 设置Relay路由
-func SetRelayRouter(router *gin.Engine, hc *handlers.HandlerContainers, mw *middleware.Middlewares) {
+// setRelayRouter 设置Relay路由
+func setRelayRouter(router *gin.Engine, hc *handlers.HandlerContainers, mw *middleware.Middlewares) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.GzipDecodeMiddleware())
 

@@ -37,6 +37,7 @@ func (h *RedemptionHandler) GetAllRedemptions(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -55,6 +56,7 @@ func (h *RedemptionHandler) SearchRedemptions(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -72,6 +74,7 @@ func (h *RedemptionHandler) GetRedemption(c *gin.Context) {
 		})
 		return
 	}
+
 	redemption, err := h.service.GetRedemptionById(id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -80,6 +83,7 @@ func (h *RedemptionHandler) GetRedemption(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -89,15 +93,15 @@ func (h *RedemptionHandler) GetRedemption(c *gin.Context) {
 
 // RedemptionCreateRequest 兑换码创建请求
 type RedemptionCreateRequest struct {
-	Name  string `json:"name" binding:"required"`
-	Count int    `json:"count" binding:"required,min=1,max=100"`
-	Quota int64  `json:"quota" binding:"required"`
+	Name  string `json:"name" form:"name" binding:"required"`
+	Count int    `json:"count" form:"count" binding:"required,min=1,max=100"`
+	Quota int64  `json:"quota" form:"quota" binding:"required"`
 }
 
 // AddRedemption 添加兑换码
 func (h *RedemptionHandler) AddRedemption(c *gin.Context) {
 	var req RedemptionCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -134,6 +138,7 @@ func (h *RedemptionHandler) AddRedemption(c *gin.Context) {
 		}
 		keys = append(keys, key)
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -152,6 +157,7 @@ func (h *RedemptionHandler) DeleteRedemption(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -160,18 +166,16 @@ func (h *RedemptionHandler) DeleteRedemption(c *gin.Context) {
 
 // RedemptionUpdateRequest 兑换码更新请求
 type RedemptionUpdateRequest struct {
-	ID     int    `json:"id" binding:"required"`
-	Name   string `json:"name"`
-	Quota  int64  `json:"quota"`
-	Status int    `json:"status"`
+	ID     int    `json:"id" form:"id" binding:"required"`
+	Name   string `json:"name" form:"name"`
+	Quota  int64  `json:"quota" form:"quota"`
+	Status int    `json:"status" form:"status"`
 }
 
 // UpdateRedemption 更新兑换码
 func (h *RedemptionHandler) UpdateRedemption(c *gin.Context) {
-	statusOnly := c.Query("status_only")
-
 	var req RedemptionUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -179,6 +183,7 @@ func (h *RedemptionHandler) UpdateRedemption(c *gin.Context) {
 		return
 	}
 
+	statusOnly := c.Query("status_only")
 	cleanRedemption, err := h.service.GetRedemptionById(req.ID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

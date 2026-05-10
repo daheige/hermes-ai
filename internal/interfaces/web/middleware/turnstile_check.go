@@ -31,13 +31,13 @@ func (m *TurnstileMiddleware) TurnstileCheck() gin.HandlerFunc {
 				c.Next()
 				return
 			}
+
 			response := c.Query("turnstile")
 			if response == "" {
-				c.JSON(http.StatusOK, gin.H{
+				c.AbortWithStatusJSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": "Turnstile token 为空",
 				})
-				c.Abort()
 				return
 			}
 
@@ -48,11 +48,10 @@ func (m *TurnstileMiddleware) TurnstileCheck() gin.HandlerFunc {
 			})
 			if err != nil {
 				slog.Error(err.Error())
-				c.JSON(http.StatusOK, gin.H{
+				c.AbortWithStatusJSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
 				})
-				c.Abort()
 				return
 			}
 			defer rawRes.Body.Close()
@@ -60,21 +59,20 @@ func (m *TurnstileMiddleware) TurnstileCheck() gin.HandlerFunc {
 			err = json.NewDecoder(rawRes.Body).Decode(&res)
 			if err != nil {
 				slog.Error(err.Error())
-				c.JSON(http.StatusOK, gin.H{
+				c.AbortWithStatusJSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
 				})
-				c.Abort()
 				return
 			}
 			if !res.Success {
-				c.JSON(http.StatusOK, gin.H{
+				c.AbortWithStatusJSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": "Turnstile 校验失败，请刷新重试！",
 				})
-				c.Abort()
 				return
 			}
+
 			// 1 hour for turnstile_checked cookie
 			c.SetCookie("turnstile_checked", "true", 3600, "/", "", false, false)
 		}

@@ -56,33 +56,29 @@ func (a *AuthMiddleware) authHelper(c *gin.Context, minRole int) {
 		}
 
 		if user == nil || user.Username == "" {
-			c.JSON(http.StatusOK, gin.H{
+			c.AbortWithStatusJSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无权进行此操作，access token 无效",
 			})
-			c.Abort()
 			return
 		}
 	}
 
 	ok, _ := a.userService.IsUserBanned(user.Id)
 	if user.Status == entity.UserStatusDisabled || ok {
-		c.JSON(http.StatusOK, gin.H{
+		c.SetCookie("access_token", "", -1, "/", "", false, true)
+		c.AbortWithStatusJSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户已被封禁",
 		})
-
-		c.SetCookie("access_token", "", -1, "/", "", false, true)
-		c.Abort()
 		return
 	}
 
 	if user.Role < minRole {
-		c.JSON(http.StatusOK, gin.H{
+		c.AbortWithStatusJSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，权限不足",
 		})
-		c.Abort()
 		return
 	}
 
@@ -133,7 +129,8 @@ func (a *AuthMiddleware) TokenAuth() func(c *gin.Context) {
 		}
 		if token.Subnet != nil && *token.Subnet != "" {
 			if !network.IsIpInSubnets(ctx, c.ClientIP(), *token.Subnet) {
-				abortWithMessage(c, http.StatusForbidden, fmt.Sprintf("该令牌只能在指定网段使用：%s，当前 ip：%s", *token.Subnet, c.ClientIP()))
+				abortWithMessage(c, http.StatusForbidden,
+					fmt.Sprintf("该令牌只能在指定网段使用：%s，当前 ip：%s", *token.Subnet, c.ClientIP()))
 				return
 			}
 		}

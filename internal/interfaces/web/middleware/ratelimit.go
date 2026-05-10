@@ -61,8 +61,7 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 	if err != nil {
 		slog.With("request_id", logger.GetRequestID(ctx)).
 			Error("failed to check rate limit len", "error", err.Error())
-		c.Status(http.StatusInternalServerError)
-		c.Abort()
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
@@ -75,8 +74,7 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 		if err != nil {
 			slog.With("request_id", logger.GetRequestID(ctx)).
 				Error("failed to get rate limit lindex", "error", err.Error())
-			c.Status(http.StatusInternalServerError)
-			c.Abort()
+			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 
@@ -85,8 +83,7 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 		if err != nil {
 			slog.With("request_id", logger.GetRequestID(ctx)).
 				Error("failed to parse time", "error", err.Error())
-			c.Status(http.StatusInternalServerError)
-			c.Abort()
+			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 
@@ -94,11 +91,10 @@ func (r *RateLimitMiddleware) redisRateLimiter(c *gin.Context, maxRequestNum int
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			r.rdb.Expire(ctx, key, r.RateLimitKeyExpirationDuration)
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			c.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}
-
+		
 		r.rdb.LPush(ctx, key, time.Now().Format(timeFormat))
 		r.rdb.LTrim(ctx, key, 0, int64(maxRequestNum-1))
 		r.rdb.Expire(ctx, key, r.RateLimitKeyExpirationDuration)

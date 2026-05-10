@@ -13,10 +13,10 @@ import (
 
 // LogService 日志服务
 type LogService struct {
-	logRepo          repo.LogRepository
-	userRepo         repo.UserRepository
+	logRepo           repo.LogRepository
+	userRepo          repo.UserRepository
 	logConsumeEnabled bool
-	maxRecentItems   int
+	maxRecentItems    int
 }
 
 // NewLogService 创建日志服务
@@ -90,34 +90,57 @@ func (s *LogService) RecordTestLog(ctx context.Context, log *entity.Log) {
 	s.recordLogHelper(ctx, log)
 }
 
+// AllLogsParams 日志参数
+type AllLogsParams struct {
+	Limit          int
+	Offset         int
+	LogType        int
+	StartTimestamp int64
+	EndTimestamp   int64
+	Username       string
+	TokenName      string
+	ModelName      string
+	Channel        int
+}
+
 // GetAllLogs 获取所有日志
-func (s *LogService) GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string,
-	username string, tokenName string, startIdx int, num int, channel int) ([]*entity.Log, error) {
+func (s *LogService) GetAllLogs(p AllLogsParams) ([]*entity.Log, error) {
 	return s.logRepo.GetAllLogs(entity.LogQueryParams{
-		LogType:        logType,
-		StartTimestamp: startTimestamp,
-		EndTimestamp:   endTimestamp,
-		ModelName:      modelName,
-		Username:       username,
-		TokenName:      tokenName,
-		Offset:         startIdx,
-		Limit:          num,
-		Channel:        channel,
+		LogType:        p.LogType,
+		StartTimestamp: p.StartTimestamp,
+		EndTimestamp:   p.EndTimestamp,
+		ModelName:      p.ModelName,
+		Username:       p.Username,
+		TokenName:      p.TokenName,
+		Offset:         p.Offset,
+		Limit:          p.Limit,
+		Channel:        p.Channel,
 	})
 }
 
+// UserLogsParams 用户日志参数
+type UserLogsParams struct {
+	UserId         int
+	Limit          int
+	Offset         int
+	LogType        int
+	StartTimestamp int64
+	EndTimestamp   int64
+	TokenName      string
+	ModelName      string
+}
+
 // GetUserLogs 获取用户日志
-func (s *LogService) GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string,
-	tokenName string, startIdx int, num int) ([]*entity.Log, error) {
+func (s *LogService) GetUserLogs(p UserLogsParams) ([]*entity.Log, error) {
 	return s.logRepo.GetUserLogs(entity.LogUserQueryParams{
-		UserId:         userId,
-		LogType:        logType,
-		StartTimestamp: startTimestamp,
-		EndTimestamp:   endTimestamp,
-		ModelName:      modelName,
-		TokenName:      tokenName,
-		Offset:         startIdx,
-		Limit:          num,
+		UserId:         p.UserId,
+		LogType:        p.LogType,
+		StartTimestamp: p.StartTimestamp,
+		EndTimestamp:   p.EndTimestamp,
+		ModelName:      p.ModelName,
+		TokenName:      p.TokenName,
+		Offset:         p.Offset,
+		Limit:          p.Limit,
 	})
 }
 
@@ -131,17 +154,27 @@ func (s *LogService) SearchUserLogs(userId int, keyword string) ([]*entity.Log, 
 	return s.logRepo.SearchUserLogs(userId, keyword, s.maxRecentItems)
 }
 
+// SumUsedQuotaParams 统计参数
+type SumUsedQuotaParams struct {
+	LogType        int
+	StartTimestamp int64
+	EndTimestamp   int64
+	ModelName      string
+	Username       string
+	TokenName      string
+	Channel        int
+}
+
 // SumUsedQuota 统计已用配额
-func (s *LogService) SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string,
-	username string, tokenName string, channel int) int64 {
+func (s *LogService) SumUsedQuota(p SumUsedQuotaParams) int64 {
 	return s.logRepo.SumUsedQuota(entity.LogUsedQuotaQueryParams{
-		LogType:        logType,
-		StartTimestamp: startTimestamp,
-		EndTimestamp:   endTimestamp,
-		ModelName:      modelName,
-		Username:       username,
-		TokenName:      tokenName,
-		Channel:        channel,
+		LogType:        p.LogType,
+		StartTimestamp: p.StartTimestamp,
+		EndTimestamp:   p.EndTimestamp,
+		ModelName:      p.ModelName,
+		Username:       p.Username,
+		TokenName:      p.TokenName,
+		Channel:        p.Channel,
 	})
 }
 

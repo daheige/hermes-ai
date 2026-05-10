@@ -19,7 +19,7 @@ func NewGroupHandler() *GroupHandler {
 
 // GetGroups 获取所有分组
 func (h *GroupHandler) GetGroups(c *gin.Context) {
-	groupNames := make([]string, 0)
+	groupNames := make([]string, 0, len(billingratio.GroupRatio))
 	for groupName := range billingratio.GroupRatio {
 		groupNames = append(groupNames, groupName)
 	}

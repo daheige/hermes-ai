@@ -76,9 +76,10 @@ func (h *GitHubHandler) getGitHubUserInfoByCode(code string) (*GitHubUser, error
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		slog.Info(err.Error())
+		slog.Error("failed to get github user error", slog.String("error", err.Error()))
 		return nil, errors.New("无法连接至 GitHub 服务器，请稍后重试！")
 	}
+
 	defer func() {
 		e := res.Body.Close()
 		if e != nil {
@@ -99,7 +100,7 @@ func (h *GitHubHandler) getGitHubUserInfoByCode(code string) (*GitHubUser, error
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", oAuthResponse.AccessToken))
 	res2, err := client.Do(req)
 	if err != nil {
-		slog.Info(err.Error())
+		slog.Error("failed to connect github", slog.String("error", err.Error()))
 		return nil, errors.New("无法连接至 GitHub 服务器，请稍后重试！")
 	}
 	defer func() {
@@ -132,6 +133,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 		})
 		return
 	}
+
 	currentUser := GetUserFromAuthCookie(c, h.userService)
 	if currentUser != nil {
 		h.GitHubBind(c, currentUser)
@@ -204,7 +206,7 @@ func (h *GitHubHandler) GitHubOAuth(c *gin.Context) {
 		return
 	}
 
-	SetupLogin(user, c)
+	setupLogin(user, c)
 }
 
 func (h *GitHubHandler) GitHubBind(c *gin.Context, currentUser *entity.User) {

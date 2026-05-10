@@ -24,15 +24,22 @@ func shouldAuth(cfg SMTPConfig) bool {
 	return cfg.Account != "" || cfg.Token != ""
 }
 
-func SendEmail(cfg SMTPConfig, systemName, subject, receiver, content string) error {
-	if receiver == "" {
+type EmailMessage struct {
+	SystemName string
+	Subject    string
+	Receiver   string
+	Content    string
+}
+
+func SendEmail(cfg SMTPConfig, msg EmailMessage) error {
+	if msg.Receiver == "" {
 		return fmt.Errorf("receiver is empty")
 	}
 	if cfg.From == "" { // for compatibility
 		cfg.From = cfg.Account
 	}
 
-	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
+	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(msg.Subject)))
 
 	// Extract domain from SMTPFrom
 	parts := strings.Split(cfg.From, "@")
@@ -54,11 +61,11 @@ func SendEmail(cfg SMTPConfig, systemName, subject, receiver, content string) er
 		"Message-ID: %s\r\n"+ // add Message-ID header to avoid being treated as spam, RFC 5322
 		"Date: %s\r\n"+
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		receiver, systemName, cfg.From, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), content))
+		msg.Receiver, msg.SystemName, cfg.From, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), msg.Content))
 
 	auth := smtp.PlainAuth("", cfg.Account, cfg.Token, cfg.Server)
 	addr := fmt.Sprintf("%s:%d", cfg.Server, cfg.Port)
-	to := strings.Split(receiver, ";")
+	to := strings.Split(msg.Receiver, ";")
 
 	if cfg.Port == 465 || !shouldAuth(cfg) {
 		// need advanced client
@@ -89,7 +96,7 @@ func SendEmail(cfg SMTPConfig, systemName, subject, receiver, content string) er
 		if err = client.Mail(cfg.From); err != nil {
 			return err
 		}
-		receiverEmails := strings.Split(receiver, ";")
+		receiverEmails := strings.Split(msg.Receiver, ";")
 		for _, receiver := range receiverEmails {
 			if err = client.Rcpt(receiver); err != nil {
 				return err

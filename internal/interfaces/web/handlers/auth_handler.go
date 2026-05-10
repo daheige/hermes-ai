@@ -24,8 +24,8 @@ func NewAuthHandler(service *application.UserService, conf AuthConfig) *AuthHand
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username" form:"username" binding:"required"`
+	Password string `json:"password" form:"password" binding:"required"`
 }
 
 type AuthConfig struct {
@@ -46,7 +46,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": i18n.Translate(c, "invalid_parameter"),
 			"success": false,
@@ -63,12 +63,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	SetupLogin(user, c)
+	setupLogin(user, c)
 }
 
 // Logout 用户注销
 func (h *AuthHandler) Logout(c *gin.Context) {
-	ClearAuthCookie(c)
+	clearAuthCookie(c)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -77,12 +77,12 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 // RegisterRequest 注册请求
 type RegisterRequest struct {
-	Username         string `json:"username" binding:"required"`
-	Password         string `json:"password" binding:"required"`
-	DisplayName      string `json:"display_name"`
-	Email            string `json:"email"`
-	VerificationCode string `json:"verification_code"`
-	AffCode          string `json:"aff_code"`
+	Username         string `json:"username" form:"username" binding:"required"`
+	Password         string `json:"password" form:"password" binding:"required"`
+	DisplayName      string `json:"display_name" form:"display_name"`
+	Email            string `json:"email" form:"email"`
+	VerificationCode string `json:"verification_code" form:"verification_code"`
+	AffCode          string `json:"aff_code" form:"aff_code"`
 }
 
 // Register 用户注册
@@ -104,17 +104,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": i18n.Translate(c, "invalid_parameter"),
-		})
-		return
-	}
-	if err := validate.Validate.Struct(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": i18n.Translate(c, "invalid_input"),
 		})
 		return
 	}

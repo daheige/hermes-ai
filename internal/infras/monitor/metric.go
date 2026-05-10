@@ -55,7 +55,12 @@ func (mc *MetricCollector) consumeFail() {
 			}
 			if successRate < mc.successRateThreshold {
 				mc.store[channelId] = make([]bool, 0)
-				go mc.channelMonitor.MetricDisableChannel(channelId, successRate, mc.queueSize, mc.successRateThreshold)
+				go mc.channelMonitor.MetricDisableChannel(MetricDisableParams{
+					ChannelId:            channelId,
+					SuccessRate:          successRate,
+					QueueSize:            mc.queueSize,
+					SuccessRateThreshold: mc.successRateThreshold,
+				})
 			}
 		}
 	}

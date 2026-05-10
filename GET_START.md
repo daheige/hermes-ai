@@ -77,6 +77,9 @@ SQL_DSN=root:root123456@tcp(localhost:3306)/ai_gateway
 REDIS_CONN_STRING=redis://:@localhost:6379/0?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
 DEBUG=false
 DEBUG_SQL=true
+
+# AES 加密密钥，用于加密 tokens/redemptions/channels 的 key 字段
+AES_SECRET_KEY=your-secret-key-here
 ```
 
 > 完整环境变量说明请参考 [env.md](env.md)。
@@ -235,7 +238,7 @@ curl http://127.0.0.1:1337/v1/chat/completions \
 │   ├── application/        # 应用层
 │   ├── infras/             # 基础设施层（配置、数据库、缓存、日志、限流等）
 │   ├── interfaces/         # 接口层（HTTP handlers、路由、中间件）
-│   └── providers/          # 服务提供者注册
+│   └── providers/          # 服务提供者注册（仓库初始化、服务组装、依赖注入）
 │
 ├── web/                    # 前端 React 项目
 │   ├── default/            # 默认主题

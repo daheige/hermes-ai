@@ -86,7 +86,12 @@ func main() {
 	}
 
 	// Initialize Redis
-	redisClient, err := config.InitRedisClient(sysCfg.RedisConnString, sysCfg.RedisEnableCluster, sysCfg.RedisPassword, sysCfg.RedisUsername)
+	redisClient, err := config.InitRedisClient(config.RedisConfig{
+		ConnString:    sysCfg.RedisConnString,
+		EnableCluster: sysCfg.RedisEnableCluster,
+		Password:      sysCfg.RedisPassword,
+		Username:      sysCfg.RedisUsername,
+	})
 	if err != nil {
 		log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
@@ -155,22 +160,24 @@ func main() {
 	ginRouter.Use(middleware.Language())
 
 	// init channel monitor
-	channelMonitor := monitor2.NewChannelMonitor(
-		services.UserService, services.ChannelService,
-		message.SMTPConfig{
+	channelMonitor := monitor2.NewChannelMonitor(monitor2.ChannelMonitorDeps{
+		UserService:    services.UserService,
+		ChannelService: services.ChannelService,
+	}, monitor2.ChannelMonitorConfig{
+		SmtpCfg: message.SMTPConfig{
 			Server:  sysCfg.SMTPServer,
 			Port:    sysCfg.SMTPPort,
 			Account: sysCfg.SMTPAccount,
 			From:    sysCfg.SMTPFrom,
 			Token:   sysCfg.SMTPToken,
 		},
-		message.MessagePusherConfig{
+		PusherCfg: message.MessagePusherConfig{
 			Address: sysCfg.MessagePusherAddress,
 			Token:   sysCfg.MessagePusherToken,
 		},
-		sysCfg.SystemName,
-		sysCfg.RootUserEmail,
-	)
+		SystemName: sysCfg.SystemName,
+		RootEmail:  sysCfg.RootUserEmail,
+	})
 	var metricCollector *monitor2.MetricCollector
 	if sysCfg.EnableMetric {
 		metricCollector = monitor2.NewMetricCollector(channelMonitor, sysCfg.MetricQueueSize, sysCfg.MetricSuccessRateThreshold, sysCfg.MetricSuccessChanSize, sysCfg.MetricFailChanSize)
@@ -209,12 +216,18 @@ func main() {
 	)
 
 	// Create router with handlers
-	router.SetRouter(ginRouter, buildFS, handlerContainer, middlewares, cfg.Theme, sysCfg.FrontendBaseURL)
-	var port = sysCfg.Port
-	log.Printf("server started on http://localhost:%d", port)
+	routerConfig := &router.RouterConfig{
+		BuildFS:         buildFS,
+		Hc:              handlerContainer,
+		Middlewares:     middlewares,
+		Theme:           cfg.Theme,
+		FrontendBaseUrl: sysCfg.FrontendBaseURL,
+	}
+	router.SetRouter(ginRouter, routerConfig)
+	log.Printf("server started on http://localhost:%d", sysCfg.Port)
 
 	// 启动服务
-	address := fmt.Sprintf("0.0.0.0:%d", port)
+	address := fmt.Sprintf("0.0.0.0:%d", sysCfg.Port)
 	server := &http.Server{
 		Handler:           ginRouter,
 		Addr:              address,

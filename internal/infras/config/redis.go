@@ -10,16 +10,23 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type RedisConfig struct {
+	ConnString    string
+	EnableCluster bool
+	Password      string
+	Username      string
+}
+
 // InitRedisClient 初始化redis client
-func InitRedisClient(connString string, enableCluster bool, password, username string) (redis.UniversalClient, error) {
-	if connString == "" {
+func InitRedisClient(cfg RedisConfig) (redis.UniversalClient, error) {
+	if cfg.ConnString == "" {
 		log.Println("REDIS_CONN_STRING not set, Redis is not enabled")
 		return nil, errors.New("REDIS_CONN_STRING not set")
 	}
 
 	var client redis.UniversalClient
-	if !enableCluster {
-		opt, err := redis.ParseURL(connString)
+	if !cfg.EnableCluster {
+		opt, err := redis.ParseURL(cfg.ConnString)
 		if err != nil {
 			return nil, err
 		}
@@ -29,9 +36,9 @@ func InitRedisClient(connString string, enableCluster bool, password, username s
 		// cluster mode
 		log.Println("Redis cluster mode enabled")
 		client = redis.NewUniversalClient(&redis.UniversalOptions{
-			Addrs:    strings.Split(connString, ","),
-			Password: password,
-			Username: username,
+			Addrs:    strings.Split(cfg.ConnString, ","),
+			Password: cfg.Password,
+			Username: cfg.Username,
 		})
 	}
 
