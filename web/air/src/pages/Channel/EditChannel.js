@@ -244,7 +244,7 @@ const EditChannel = (props) => {
         }
         localInputs.auto_ban = autoBan ? 1 : 0;
         localInputs.models = localInputs.models.join(',');
-        localInputs.group = localInputs.groups.join(',');
+        localInputs.group = Array.isArray(localInputs.groups) ? localInputs.groups.join(',') : '';
         if (isEdit) {
             res = await API.put(`/api/channel/`, {...localInputs, id: parseInt(channelId)});
         } else {

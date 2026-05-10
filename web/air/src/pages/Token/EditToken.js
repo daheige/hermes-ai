@@ -237,7 +237,7 @@ const EditToken = (props) => {
             name="expired_time"
             placeholder={'请选择过期时间'}
             onChange={(value) => handleInputChange('expired_time', value)}
-            value={expired_time}
+            value={expired_time === -1 ? null : expired_time}
             autoComplete="new-password"
             type="dateTime"
           />

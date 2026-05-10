@@ -65,7 +65,15 @@ func main() {
 	slog.Debug("running in debug mode")
 
 	// Initialize SQL Database
-	db, logDB := config.InitDatabase(sysCfg.SQLDSN, sysCfg.LogSQLDSN, sysCfg.DebugSQLEnabled, sysCfg.SQLMaxIdleConns, sysCfg.SQLMaxOpenConns, sysCfg.SQLMaxLifetime)
+	dbConf := config.DBConfig{
+		DSN:          sysCfg.SQLDSN,
+		LogDSN:       sysCfg.LogSQLDSN,
+		DebugSQL:     sysCfg.DebugSQLEnabled,
+		MaxIdleConns: sysCfg.SQLMaxIdleConns,
+		MaxOpenConns: sysCfg.SQLMaxOpenConns,
+		MaxLifetime:  sysCfg.SQLMaxLifetime,
+	}
+	db, logDB := config.InitDatabase(dbConf)
 	defer func() {
 		err := config.CloseDB(db)
 		if err != nil {
@@ -96,25 +104,21 @@ func main() {
 		log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
 
-	// Initialize application config
-	cfg := initAppConfig(sysCfg)
-	cfg.CacheEnabled = true // 使用redis cache
-
 	// init repos
 	repos := providers.InitRepositories(db, logDB, redisClient, providers.BatchUpdaterConfig{
-		BatchInterval:      time.Duration(cfg.BatchUpdateInterval) * time.Second,
-		BatchUpdateEnabled: cfg.BatchUpdateEnabled,
+		BatchInterval:      time.Duration(sysCfg.BatchUpdateInterval) * time.Second,
+		BatchUpdateEnabled: sysCfg.BatchUpdateEnabled,
 	})
 	// Initialize application services
-	services := providers.InitServices(repos, cfg)
+	services := providers.InitServices(repos, sysCfg)
 
 	// Initialize options
 	services.OptionService.InitOptionMap()
 	sysCfg.RootUserEmail = services.UserService.GetRootUserEmail()
-	slog.Info(fmt.Sprintf("using theme %s", cfg.Theme))
+	slog.Info(fmt.Sprintf("using theme %s", sysCfg.Theme))
 
 	// 内存缓存对于redis也是
-	if cfg.CacheEnabled {
+	if sysCfg.CacheEnabled {
 		slog.Info("sync option and channel from database")
 		defer services.ChannelService.Stop()
 		defer services.OptionService.Stop()
@@ -128,8 +132,8 @@ func main() {
 	}
 
 	// 启动批量更新
-	if cfg.BatchUpdateEnabled {
-		slog.Info("batch update enabled with interval " + strconv.Itoa(cfg.BatchUpdateInterval) + "s")
+	if sysCfg.BatchUpdateEnabled {
+		slog.Info("batch update enabled with interval " + strconv.Itoa(sysCfg.BatchUpdateInterval) + "s")
 		repos.BatchUpdater.Start()
 		defer repos.BatchUpdater.Stop()
 	}
@@ -190,7 +194,7 @@ func main() {
 		channelMonitor,
 		adaptorFactory,
 		metricCollector,
-		initHandlerParams(cfg),
+		initHandlerParams(sysCfg),
 	)
 
 	// init relay services
@@ -221,7 +225,7 @@ func main() {
 		BuildFS:         buildFS,
 		Hc:              handlerContainer,
 		Middlewares:     middlewares,
-		Theme:           cfg.Theme,
+		Theme:           sysCfg.Theme,
 		FrontendBaseUrl: sysCfg.FrontendBaseURL,
 	}
 	router.SetRouter(ginRouter, routerConfig)
@@ -299,98 +303,7 @@ func shutdown(server *http.Server, gracefulWait time.Duration) {
 	}
 }
 
-func initAppConfig(sysCfg *config.SystemConfig) *config.AppConfig {
-	return &config.AppConfig{
-		SystemName:                     sysCfg.SystemName,
-		ServerAddress:                  sysCfg.ServerAddress,
-		Footer:                         sysCfg.Footer,
-		Logo:                           sysCfg.Logo,
-		TopUpLink:                      sysCfg.TopUpLink,
-		ChatLink:                       sysCfg.ChatLink,
-		QuotaPerUnit:                   sysCfg.QuotaPerUnit,
-		DisplayInCurrencyEnabled:       sysCfg.DisplayInCurrencyEnabled,
-		DisplayTokenStatEnabled:        sysCfg.DisplayTokenStatEnabled,
-		ItemsPerPage:                   sysCfg.ItemsPerPage,
-		MaxRecentItems:                 sysCfg.MaxRecentItems,
-		PasswordLoginEnabled:           sysCfg.PasswordLoginEnabled,
-		PasswordRegisterEnabled:        sysCfg.PasswordRegisterEnabled,
-		EmailVerificationEnabled:       sysCfg.EmailVerificationEnabled,
-		GitHubOAuthEnabled:             sysCfg.GitHubOAuthEnabled,
-		OidcEnabled:                    sysCfg.OidcEnabled,
-		WeChatAuthEnabled:              sysCfg.WeChatAuthEnabled,
-		TurnstileCheckEnabled:          sysCfg.TurnstileCheckEnabled,
-		RegisterEnabled:                sysCfg.RegisterEnabled,
-		EmailDomainRestrictionEnabled:  sysCfg.EmailDomainRestrictionEnabled,
-		EmailDomainWhitelist:           sysCfg.EmailDomainWhitelist,
-		DebugSQLEnabled:                sysCfg.DebugSQLEnabled,
-		CacheEnabled:                   sysCfg.MemoryCacheEnabled,
-		LogConsumeEnabled:              sysCfg.LogConsumeEnabled,
-		SMTPServer:                     sysCfg.SMTPServer,
-		SMTPPort:                       sysCfg.SMTPPort,
-		SMTPAccount:                    sysCfg.SMTPAccount,
-		SMTPFrom:                       sysCfg.SMTPFrom,
-		SMTPToken:                      sysCfg.SMTPToken,
-		GitHubClientId:                 sysCfg.GitHubClientId,
-		GitHubClientSecret:             sysCfg.GitHubClientSecret,
-		LarkClientId:                   sysCfg.LarkClientId,
-		LarkClientSecret:               sysCfg.LarkClientSecret,
-		OidcClientId:                   sysCfg.OidcClientId,
-		OidcClientSecret:               sysCfg.OidcClientSecret,
-		OidcWellKnown:                  sysCfg.OidcWellKnown,
-		OidcAuthorizationEndpoint:      sysCfg.OidcAuthorizationEndpoint,
-		OidcTokenEndpoint:              sysCfg.OidcTokenEndpoint,
-		OidcUserinfoEndpoint:           sysCfg.OidcUserinfoEndpoint,
-		WeChatServerAddress:            sysCfg.WeChatServerAddress,
-		WeChatServerToken:              sysCfg.WeChatServerToken,
-		WeChatAccountQRCodeImageURL:    sysCfg.WeChatAccountQRCodeImageURL,
-		MessagePusherAddress:           sysCfg.MessagePusherAddress,
-		MessagePusherToken:             sysCfg.MessagePusherToken,
-		TurnstileSiteKey:               sysCfg.TurnstileSiteKey,
-		TurnstileSecretKey:             sysCfg.TurnstileSecretKey,
-		QuotaForNewUser:                sysCfg.QuotaForNewUser,
-		QuotaForInviter:                sysCfg.QuotaForInviter,
-		QuotaForInvitee:                sysCfg.QuotaForInvitee,
-		ChannelDisableThreshold:        sysCfg.ChannelDisableThreshold,
-		AutomaticDisableChannelEnabled: sysCfg.AutomaticDisableChannelEnabled,
-		AutomaticEnableChannelEnabled:  sysCfg.AutomaticEnableChannelEnabled,
-		QuotaRemindThreshold:           sysCfg.QuotaRemindThreshold,
-		PreConsumedQuota:               sysCfg.PreConsumedQuota,
-		ApproximateTokenEnabled:        sysCfg.ApproximateTokenEnabled,
-		RetryTimes:                     sysCfg.RetryTimes,
-		RequestInterval:                sysCfg.RequestInterval,
-		SyncFrequency:                  sysCfg.SyncFrequency,
-		BatchUpdateEnabled:             sysCfg.BatchUpdateEnabled,
-		BatchUpdateInterval:            sysCfg.BatchUpdateInterval,
-		Theme:                          sysCfg.Theme,
-		ValidThemes:                    sysCfg.ValidThemes,
-		GlobalWebRateLimitNum:          sysCfg.GlobalWebRateLimitNum,
-		GlobalWebRateLimitDuration:     sysCfg.GlobalWebRateLimitDuration,
-		GlobalApiRateLimitNum:          sysCfg.GlobalApiRateLimitNum,
-		GlobalApiRateLimitDuration:     sysCfg.GlobalApiRateLimitDuration,
-		CriticalRateLimitNum:           sysCfg.CriticalRateLimitNum,
-		CriticalRateLimitDuration:      sysCfg.CriticalRateLimitDuration,
-		DownloadRateLimitNum:           sysCfg.DownloadRateLimitNum,
-		DownloadRateLimitDuration:      sysCfg.DownloadRateLimitDuration,
-		UploadRateLimitNum:             sysCfg.UploadRateLimitNum,
-		UploadRateLimitDuration:        sysCfg.UploadRateLimitDuration,
-		RateLimitKeyExpirationDuration: sysCfg.RateLimitKeyExpirationDuration,
-		EnableMetric:                   sysCfg.EnableMetric,
-		MetricQueueSize:                sysCfg.MetricQueueSize,
-		MetricSuccessRateThreshold:     sysCfg.MetricSuccessRateThreshold,
-		MetricSuccessChanSize:          sysCfg.MetricSuccessChanSize,
-		MetricFailChanSize:             sysCfg.MetricFailChanSize,
-		RelayTimeout:                   sysCfg.RelayTimeout,
-		UserContentRequestProxy:        sysCfg.UserContentRequestProxy,
-		UserContentRequestTimeout:      sysCfg.UserContentRequestTimeout,
-		RelayProxy:                     sysCfg.RelayProxy,
-		EnforceIncludeUsage:            sysCfg.EnforceIncludeUsage,
-		TestPrompt:                     sysCfg.TestPrompt,
-		InitialRootToken:               sysCfg.InitialRootToken,
-		InitialRootAccessToken:         sysCfg.InitialRootAccessToken,
-	}
-}
-
-func initHandlerParams(cfg *config.AppConfig) *handlers.HandlerParams {
+func initHandlerParams(cfg *config.SystemConfig) *handlers.HandlerParams {
 	handlerParams := &handlers.HandlerParams{
 		LarkUserConfig: handlers.LarkUserConfig{
 			LarkClientId:     cfg.LarkClientId,

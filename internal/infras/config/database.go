@@ -13,19 +13,29 @@ import (
 	glogger "gorm.io/gorm/logger"
 )
 
+// DBConfig 数据库配置
+type DBConfig struct {
+	DSN          string
+	LogDSN       string
+	DebugSQL     bool
+	MaxIdleConns int
+	MaxOpenConns int
+	MaxLifetime  int
+}
+
 // InitDatabase 初始化db
-func InitDatabase(sqlDSN, logSQLDSN string, debugSQL bool, maxIdleConns, maxOpenConns, maxLifetime int) (*gorm.DB, *gorm.DB) {
+func InitDatabase(conf DBConfig) (*gorm.DB, *gorm.DB) {
 	// Initialize SQL Database
-	db, err := initDB(sqlDSN, debugSQL, maxIdleConns, maxOpenConns, maxLifetime)
+	db, err := initDB(conf.DSN, conf.DebugSQL, conf.MaxIdleConns, conf.MaxOpenConns, conf.MaxLifetime)
 	if err != nil {
 		log.Fatalln("failed to connect to database error:", err)
 	}
 
 	var logDB *gorm.DB
-	if logSQLDSN == "" {
+	if conf.LogDSN == "" {
 		logDB = db
 	} else {
-		logDB, err = initDB(logSQLDSN, debugSQL, maxIdleConns, maxOpenConns, maxLifetime)
+		logDB, err = initDB(conf.LogDSN, conf.DebugSQL, conf.MaxIdleConns, conf.MaxOpenConns, conf.MaxLifetime)
 		if err != nil {
 			log.Fatalln("failed to connect to log database error:", err)
 		}

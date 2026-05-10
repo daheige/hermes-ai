@@ -75,6 +75,9 @@ func NewHandlerContainer(
 	}
 
 	userHandlerParams := &UserHandlerParams{
+		userService:              services.UserService,
+		logService:               services.LogService,
+		redemptionService:        services.RedemptionService,
 		itemsPerPage:             p.ItemsPerPage,
 		quotaPerUnit:             p.QuotaPerUnit,
 		displayInCurrencyEnabled: p.DisplayInCurrencyEnabled,
