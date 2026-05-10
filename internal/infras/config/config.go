@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"hermes-ai/internal/infras/env"
@@ -146,6 +147,13 @@ type SystemConfig struct {
 	GracefulWait int
 	LogLevel     string
 	LogDir       string
+
+	// OptionMap 配置键值对，由 OptionService 统一管理并保证并发安全
+	// handlers 应通过 OptionService 读取，不直接持有此 map 的副本
+	OptionMap        map[string]string
+	OptionMapRWMutex sync.RWMutex
+
+	CacheEnabled bool
 }
 
 // InitSystemConfig 从环境变量初始化系统配置

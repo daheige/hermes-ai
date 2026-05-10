@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// RedisConfig redis配置
 type RedisConfig struct {
 	ConnString    string
 	EnableCluster bool

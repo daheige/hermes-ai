@@ -129,7 +129,7 @@ const EditToken = () => {
       }
       localInputs.expired_time = Math.ceil(time / 1000);
     }
-    localInputs.models = localInputs.models.join(',');
+    localInputs.models = Array.isArray(localInputs.models) ? localInputs.models.join(',') : '';
     let res;
     if (isEdit) {
       res = await API.put(`/api/token/`, {
@@ -205,7 +205,7 @@ const EditToken = () => {
                 name='expired_time'
                 placeholder={t('token.edit.expire_time_placeholder')}
                 onChange={handleInputChange}
-                value={expired_time}
+                value={expired_time === -1 ? '' : expired_time}
                 autoComplete='new-password'
                 type='datetime-local'
               />

@@ -77,7 +77,7 @@ func InitRepositories(db, logDB *gorm.DB, redisClient redis.UniversalClient, bat
 }
 
 // InitServices 初始化所有服务
-func InitServices(repos *Repositories, cfg *config.AppConfig) *Services {
+func InitServices(repos *Repositories, cfg *config.SystemConfig) *Services {
 	// 初始化日志服务（无依赖）
 	logService := application.NewLogService(repos.LogRepo, repos.UserRepo, cfg.LogConsumeEnabled, cfg.MaxRecentItems)
 

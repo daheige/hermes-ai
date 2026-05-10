@@ -205,8 +205,8 @@ const EditChannel = () => {
       localInputs.other = '2024-03-01-preview';
     }
     let res;
-    localInputs.models = localInputs.models.join(',');
-    localInputs.group = localInputs.groups.join(',');
+    localInputs.models = Array.isArray(localInputs.models) ? localInputs.models.join(',') : '';
+    localInputs.group = Array.isArray(localInputs.groups) ? localInputs.groups.join(',') : '';
     localInputs.config = JSON.stringify(config);
     if (isEdit) {
       res = await API.put(`/api/channel/`, {

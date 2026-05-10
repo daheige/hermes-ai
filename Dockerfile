@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:16 AS builder
+FROM --platform=$BUILDPLATFORM node:24 AS builder
 
 WORKDIR /web
 COPY ./VERSION .
@@ -42,6 +42,6 @@ RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder2 /build/ai-gatewy /
 
-EXPOSE 3000
+EXPOSE 1337
 WORKDIR /data
 ENTRYPOINT ["/ai-gatway"]

@@ -221,8 +221,6 @@ func (s *ChannelService) GetGroupModels(ctx context.Context, group string) ([]st
 	return s.abilityRepo.GetGroupModels(ctx, group)
 }
 
-<<<<<<< HEAD
-=======
 // DelGroupModelsCache 删除分组下的模型列表cache
 func (s *ChannelService) DelGroupModelsCache(group string) error {
 	key := "group_models:" + group
@@ -230,7 +228,6 @@ func (s *ChannelService) DelGroupModelsCache(group string) error {
 	return err
 }
 
->>>>>>> feat/daheige/global-vars
 // GetVailGroupModels 带缓存的获取分组可用模型列表
 func (s *ChannelService) GetVailGroupModels(ctx context.Context, group string) ([]string, error) {
 	if !s.cacheRepo.IsEnabled() {
@@ -248,13 +245,8 @@ func (s *ChannelService) GetVailGroupModels(ctx context.Context, group string) (
 		return nil, err
 	}
 
-<<<<<<< HEAD
-	cacheErr := s.cacheRepo.Set("group_models:"+group, strings.Join(models, ","),
-		30*time.Second)
-=======
 	cacheErr := s.cacheRepo.Set(key, strings.Join(models, ","),
 		300*time.Second)
->>>>>>> feat/daheige/global-vars
 	if cacheErr != nil {
 		slog.Error("Redis set group models error: " + cacheErr.Error())
 	}

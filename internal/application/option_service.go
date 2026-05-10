@@ -15,12 +15,12 @@ import (
 // OptionService 配置选项服务
 type OptionService struct {
 	optionRepo repo.OptionRepository
-	cfg        *config.AppConfig
+	cfg        *config.SystemConfig
 	stop       chan struct{}
 }
 
 // NewOptionService 创建配置选项服务
-func NewOptionService(optionRepo repo.OptionRepository, cfg *config.AppConfig) *OptionService {
+func NewOptionService(optionRepo repo.OptionRepository, cfg *config.SystemConfig) *OptionService {
 	return &OptionService{optionRepo: optionRepo, cfg: cfg, stop: make(chan struct{}, 1)}
 }
 

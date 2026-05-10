@@ -49,7 +49,6 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 
 	order := c.DefaultQuery("order", "")
 	users, err := h.userService.GetAllUsers(p*h.itemsPerPage, h.itemsPerPage, order)
-
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
