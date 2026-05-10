@@ -408,6 +408,7 @@
       "disable": "Disable",
       "edit": "Edit",
       "promote": "Promote",
+      "promote_root": "Promote to Super Admin",
       "demote": "Demote"
     }
   },

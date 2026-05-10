@@ -408,6 +408,7 @@
       "disable": "禁用",
       "edit": "编辑",
       "promote": "提升",
+      "promote_root": "提升超级管理员",
       "demote": "降级"
     }
   },

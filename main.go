@@ -104,6 +104,9 @@ func main() {
 		log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
 
+	// 使用 redis cache
+	sysCfg.CacheEnabled = true
+
 	// init repos
 	repos := providers.InitRepositories(db, logDB, redisClient, providers.BatchUpdaterConfig{
 		BatchInterval:      time.Duration(sysCfg.BatchUpdateInterval) * time.Second,
