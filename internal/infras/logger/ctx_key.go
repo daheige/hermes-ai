@@ -7,7 +7,7 @@ import (
 	"hermes-ai/internal/infras/ctxkey"
 )
 
-var slogFields = ctxkey.CtxKey{"slog_fields"}
+var slogFields = ctxkey.CtxKey{Name: "slog_fields"}
 
 // ContextHandler slog context handler
 type ContextHandler struct {

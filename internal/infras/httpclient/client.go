@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -25,10 +24,10 @@ type ClientConfig struct {
 // Init 初始化http client
 func Init(config ClientConfig) {
 	if config.UserContentRequestProxy != "" {
-		log.Printf(fmt.Sprintf("using %s as proxy to fetch user content\n", config.UserContentRequestProxy))
+		log.Printf("using %s as proxy to fetch user content\n", config.UserContentRequestProxy)
 		proxyURL, err := url.Parse(config.UserContentRequestProxy)
 		if err != nil {
-			log.Fatalf(fmt.Sprintf("USER_CONTENT_REQUEST_PROXY set but invalid: %s", config.UserContentRequestProxy))
+			log.Fatalf("USER_CONTENT_REQUEST_PROXY set but invalid: %s", config.UserContentRequestProxy)
 		}
 		transport := &http.Transport{
 			Proxy: http.ProxyURL(proxyURL),
@@ -42,10 +41,10 @@ func Init(config ClientConfig) {
 	}
 	var transport http.RoundTripper
 	if config.RelayProxy != "" {
-		log.Printf(fmt.Sprintf("using %s as api relay proxy\n", config.RelayProxy))
+		log.Printf("using %s as api relay proxy\n", config.RelayProxy)
 		proxyURL, err := url.Parse(config.RelayProxy)
 		if err != nil {
-			log.Fatalf(fmt.Sprintf("USER_CONTENT_REQUEST_PROXY set but invalid: %s", config.UserContentRequestProxy))
+			log.Fatalf("RELAY_PROXY set but invalid: %s", config.RelayProxy)
 		}
 		transport = &http.Transport{
 			Proxy: http.ProxyURL(proxyURL),

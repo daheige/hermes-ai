@@ -381,7 +381,7 @@ func (s *UserService) CacheGetUserQuota(ctx context.Context, id int) (int64, err
 		return 0, nil
 	}
 	if quota <= s.PreConsumedQuota {
-		slog.With("request_id", logger.GetRequestID(ctx)).Info("user %d's cached quota is too low: %d, refreshing from db", quota, id)
+		slog.With("request_id", logger.GetRequestID(ctx)).Info(fmt.Sprintf("user %d's cached quota is too low: %d, refreshing from db", quota, id))
 		return s.fetchAndUpdateUserQuota(ctx, id)
 	}
 	return quota, nil

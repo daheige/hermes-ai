@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -76,9 +77,9 @@ func SendEmail(cfg SMTPConfig, msg EmailMessage) error {
 				InsecureSkipVerify: true,
 				ServerName:         cfg.Server,
 			}
-			conn, err = tls.Dial("tcp", fmt.Sprintf("%s:%d", cfg.Server, cfg.Port), tlsConfig)
+			conn, err = tls.Dial("tcp", net.JoinHostPort(cfg.Server, strconv.Itoa(cfg.Port)), tlsConfig)
 		} else {
-			conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", cfg.Server, cfg.Port))
+			conn, err = net.Dial("tcp", net.JoinHostPort(cfg.Server, strconv.Itoa(cfg.Port)))
 		}
 		if err != nil {
 			return err
