@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   Button,
   Form,
@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { API, showError, showSuccess } from '../helpers';
 import { useTranslation } from 'react-i18next';
+import { UserContext } from '../context/User';
 
 import { ITEMS_PER_PAGE } from '../constants';
 import {
@@ -37,6 +38,7 @@ function renderRole(role, t) {
 
 const UsersTable = () => {
   const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
@@ -301,6 +303,18 @@ const UsersTable = () => {
                       >
                         {t('user.buttons.promote')}
                       </Button>
+                      {userState.user && userState.user.role === 100 && (
+                        <Button
+                          size={'tiny'}
+                          color={'orange'}
+                          onClick={() => {
+                            manageUser(user.username, 'promote_root', idx);
+                          }}
+                          disabled={user.role === 100}
+                        >
+                          {t('user.buttons.promote_root')}
+                        </Button>
+                      )}
                       <Button
                         size={'tiny'}
                         color={'yellow'}

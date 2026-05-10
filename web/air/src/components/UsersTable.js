@@ -20,6 +20,7 @@ function renderRole(role) {
 }
 
 const UsersTable = () => {
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const columns = [{
     title: 'ID', dataIndex: 'id'
   }, {
@@ -91,6 +92,17 @@ const UsersTable = () => {
         >
           <Button theme="light" type="warning" style={{ marginRight: 1 }}>提升</Button>
         </Popconfirm>
+        {currentUser.role === 100 && record.role !== 100 && (
+          <Popconfirm
+            title="确定提升为超级管理员？"
+            okType={'danger'}
+            onConfirm={() => {
+              manageUser(record.username, 'promote_root', record);
+            }}
+          >
+            <Button theme="light" type="danger" style={{ marginRight: 1 }}>提升超级管理员</Button>
+          </Popconfirm>
+        )}
         <Popconfirm
           title="确定？"
           okType={'warning'}

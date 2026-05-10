@@ -93,6 +93,9 @@ export default function Users() {
       case 'role':
         data.action = value === true ? 'promote' : 'demote';
         break;
+      case 'promote_root':
+        data.action = 'promote_root';
+        break;
     }
 
     res = await API.post(url, data);

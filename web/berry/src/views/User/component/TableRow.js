@@ -38,6 +38,7 @@ function renderRole(role) {
 
 export default function UsersTableRow({ item, manageUser, handleOpenModal, setModalUserId }) {
   const theme = useTheme();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [open, setOpen] = useState(null);
   const [openDelete, setOpenDelete] = useState(false);
   const [statusSwitch, setStatusSwitch] = useState(item.status);
@@ -150,6 +151,17 @@ export default function UsersTableRow({ item, manageUser, handleOpenModal, setMo
           >
             <IconUser style={{ marginRight: '16px' }} />
             {item.role === 1 ? '设为管理员' : '取消管理员'}
+          </MenuItem>
+        )}
+        {item.role !== 100 && currentUser.role === 100 && (
+          <MenuItem
+            onClick={() => {
+              handleCloseMenu();
+              manageUser(item.username, 'promote_root', true);
+            }}
+          >
+            <IconUser style={{ marginRight: '16px' }} />
+            设为超级管理员
           </MenuItem>
         )}
 

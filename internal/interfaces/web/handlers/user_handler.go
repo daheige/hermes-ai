@@ -570,6 +570,22 @@ func (h *UserHandler) ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = entity.RoleAdminUser
+	case "promote_root":
+		if myRole != entity.RoleRootUser {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "只有超级管理员才能提升其他用户为超级管理员",
+			})
+			return
+		}
+		if user.Role == entity.RoleRootUser {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "该用户已经是超级管理员",
+			})
+			return
+		}
+		user.Role = entity.RoleRootUser
 	case "demote":
 		if user.Role == entity.RoleRootUser {
 			c.JSON(http.StatusOK, gin.H{
