@@ -92,9 +92,6 @@ func (h *RelayHandler) relayHelper(c *gin.Context, relayMode int) *model.ErrorWi
 func (h *RelayHandler) Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	relayMode := relaymode2.GetByPath(c.Request.URL.Path)
-	requestBody, _ := ginzo.GetRequestBody(c)
-	slog.With("request_id", logger.GetRequestID(ctx)).
-		Debug(fmt.Sprintf("request body: %s", string(requestBody)))
 	channelId := c.GetInt(ctxkey.ChannelId)
 	userId := c.GetInt(ctxkey.Id)
 	// log.Println("relayMode:", relayMode)
