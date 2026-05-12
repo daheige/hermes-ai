@@ -356,10 +356,24 @@ GET /api/oauth/wechat/bind?code={code}
 ### 绑定邮箱
 
 ```
-POST /api/oauth/email/bind
+GET /api/oauth/email/bind?email={email}&code={code}
 ```
 
+**请求参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| email | string | 是 | 邮箱地址 |
+| code | string | 是 | 邮箱验证码 |
+
 **中间件**: CriticalRateLimit, UserAuth
+
+**响应字段**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| success | boolean | 请求是否成功 |
+| message | string | 响应消息 |
 
 ---
 
@@ -371,7 +385,32 @@ POST /api/oauth/email/bind
 POST /api/topup
 ```
 
+**请求体**:
+
+```json
+{
+  "user_id": 1,
+  "quota": 500000,
+  "remark": "管理员充值"
+}
+```
+
+**字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | int | 是 | 用户 ID |
+| quota | int | 是 | 充值额度 |
+| remark | string | 否 | 备注信息 |
+
 **中间件**: AdminAuth
+
+**响应字段**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| success | boolean | 请求是否成功 |
+| message | string | 响应消息 |
 
 ### 获取用户仪表盘
 
@@ -585,6 +624,26 @@ GET /api/user/{id}
 POST /api/user/
 ```
 
+**请求体**:
+
+```json
+{
+  "username": "newuser",
+  "password": "password123",
+  "display_name": "New User",
+  "role": 1
+}
+```
+
+**字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| username | string | 是 | 用户名 |
+| password | string | 是 | 密码 |
+| display_name | string | 否 | 显示名称，为空则使用用户名 |
+| role | int | 否 | 用户角色（默认为普通用户） |
+
 **中间件**: AdminAuth
 
 **响应字段**:
@@ -599,6 +658,22 @@ POST /api/user/
 ```
 POST /api/user/manage
 ```
+
+**请求体**:
+
+```json
+{
+  "username": "user123",
+  "action": "disable"
+}
+```
+
+**字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| username | string | 是 | 用户名 |
+| action | string | 是 | 操作类型：`disable`（禁用）、`enable`（启用）、`delete`（删除）、`promote`（提升为管理员） |
 
 **中间件**: AdminAuth
 
@@ -615,6 +690,30 @@ POST /api/user/manage
 PUT /api/user/
 ```
 
+**请求体**:
+
+```json
+{
+  "id": 1,
+  "username": "updateduser",
+  "password": "newpassword",
+  "display_name": "Updated User",
+  "quota": 1000000,
+  "role": 1
+}
+```
+
+**字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| id | int | 是 | 用户 ID |
+| username | string | 否 | 用户名 |
+| password | string | 否 | 密码（为空则不修改） |
+| display_name | string | 否 | 显示名称 |
+| quota | int64 | 否 | 额度 |
+| role | int | 否 | 用户角色 |
+
 **中间件**: AdminAuth
 
 **响应字段**:
@@ -623,6 +722,7 @@ PUT /api/user/
 |------|------|------|
 | success | boolean | 请求是否成功 |
 | message | string | 响应消息 |
+| data | object | 更新后的用户信息 |
 
 ### 删除用户（管理员）
 
@@ -1648,7 +1748,7 @@ POST /v1/messages
 | AdminAuth | 需要管理员权限 |
 | RootAuth | 需要超级管理员权限 |
 | TokenAuth | 需要 API Token 认证 |
-| CriticalRateLimit | 关键接口限流 |
+| CriticalRateLimit | 关键接口限流（如登录、注册等） |
 | GlobalAPIRateLimit | 全局 API 限流 |
 | DownloadRateLimit | 下载接口限流 |
 | UploadRateLimit | 上传接口限流 |
@@ -1656,3 +1756,5 @@ POST /v1/messages
 | TurnstileCheck | Turnstile 验证检查 |
 | Distributor | Relay 路由渠道分发 |
 | RelayPanicRecover | Relay 异常恢复 |
+| gzip | 响应压缩（API 与静态资源） |
+| GzipDecodeMiddleware | 请求体 Gzip 解压（Relay 接口） |

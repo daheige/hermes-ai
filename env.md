@@ -30,8 +30,7 @@
 | `PORT` | int | `1337` | 服务器监听端口 |
 | `GRACEFUL_WAIT` | int | `5` | 平滑退出等待时间（秒） |
 | `GIN_MODE` | string | - | Gin 框架运行模式，设置为 `debug` 开启调试模式 |
-| `FRONTEND_BASE_URL` | string | - | 前端基础 URL，主节点时会被忽略 |
-| `NODE_TYPE` | string | - | 节点类型，`slave` 表示从节点，其他值表示主节点 |
+| `FRONTEND_BASE_URL` | string | - | 前端基础 URL |
 | `POLLING_INTERVAL` | int | - | 轮询间隔（秒） |
 
 ### 数据库配置
@@ -91,7 +90,7 @@ redis://:@localhost:6379/0?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
 | `MEMORY_CACHE_ENABLED` | bool | `false` | 启用内存缓存 |
 | `BATCH_UPDATE_ENABLED` | bool | `false` | 启用批量更新 |
 | `BATCH_UPDATE_INTERVAL` | int | `5` | 批量更新间隔（秒） |
-| `CHANNEL_TEST_FREQUENCY` | int | - | 渠道测试频率（秒），设置后自动测试渠道 |
+| `CHANNEL_TEST_FREQUENCY` | int | `0` | 渠道自动测试频率（秒），`0` 表示禁用 |
 
 ### 限流配置
 
@@ -218,6 +217,7 @@ LOG_DIR=./logs
 MEMORY_CACHE_ENABLED=true
 BATCH_UPDATE_ENABLED=true
 BATCH_UPDATE_INTERVAL=10
+CHANNEL_TEST_FREQUENCY=300
 
 # 监控
 ENABLE_METRIC=true
@@ -231,15 +231,14 @@ AES_SECRET_KEY=your-strong-random-secret-key-here
 
 ### 多节点部署配置
 
-**主节点：**
+**主节点（服务静态资源）：**
 ```bash
-NODE_TYPE=master
-# 或省略 NODE_TYPE
+# 不设置 FRONTEND_BASE_URL，或留空
+# 服务将使用嵌入的前端构建资源
 ```
 
-**从节点：**
+**从节点（仅提供 API，静态资源由外部托管）：**
 ```bash
-NODE_TYPE=slave
 FRONTEND_BASE_URL=https://frontend.example.com
 ```
 

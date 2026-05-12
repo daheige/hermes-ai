@@ -19,6 +19,10 @@ AI LLM大模型网关系统，支持多租户管理、API Key管理、限流、�
 - JWT身份认证
 - RBAC权限管理
 - 数据加密和脱敏
+- 原生 Anthropic Messages API 转发
+- 渠道自动测试与监控
+- 批量更新与内存缓存
+- 多主题前端支持（default / berry / air）
 
 ## 技术栈
 
@@ -35,6 +39,10 @@ AI LLM大模型网关系统，支持多租户管理、API Key管理、限流、�
 - **依赖注入**：服务、仓库、中间件、Handler 均通过构造函数注入依赖，便于测试和替换实现
 - **分层设计**：严格遵循 DDD 分层（Domain / Application / Infrastructure / Interfaces），职责边界清晰
 - **AES-GCM 加密**：支持对 tokens、redemptions、channels 的 key 字段进行加密存储，保护敏感信息
+- **原生 Anthropic Messages API**：支持 `/v1/messages` 原生转发，不做 OpenAI 格式转换，兼容 Claude Code 等客户端
+- **渠道自动测试**：可配置自动轮询测试渠道可用性，自动禁用/启用异常渠道
+- **批量更新**：支持配额批量更新，降低数据库写入压力
+- **多主题前端**：内置 default、berry、air 三种前端主题
 
 ## 快速开始
 
