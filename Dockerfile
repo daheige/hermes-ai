@@ -4,9 +4,9 @@ WORKDIR /web
 COPY ./VERSION .
 COPY ./web .
 
-RUN npm install --prefix /web/default & \
-    npm install --prefix /web/berry & \
-    npm install --prefix /web/air & \
+RUN npm install --prefix /web/default --legacy-peer-deps & \
+    npm install --prefix /web/berry --legacy-peer-deps & \
+    npm install --prefix /web/air --legacy-peer-deps & \
     wait
 
 RUN DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/default & \

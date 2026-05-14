@@ -9,7 +9,7 @@ while IFS= read -r theme; do
     echo "Building theme: $theme"
     rm -rf $root_dir/web/build/$theme
     cd $root_dir/web/$theme
-    npm install
+    npm install --legacy-peer-deps
     DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$version npm run build
     cd $root_dir/web
 done < $root_dir/web/THEMES
